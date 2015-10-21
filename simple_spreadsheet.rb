@@ -108,12 +108,8 @@ class Cell
     @evaluated_content || DEFAULT_VALUE
   end
 
-  def direct_or_indirect_references
-    cells = references.inject(references.clone) do |memo, cell|
-      memo << cell.direct_or_indirect_references
-    end
-
-    cells.flatten
+  def directly_or_indirectly_references?(cell)
+    references.include?(cell) || references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
   end
 
   private
@@ -127,7 +123,7 @@ class Cell
   end
 
   def add_reference(cell)
-    raise "Cyclical reference detected when adding reference #{cell.ref} to #{ref}!" if cell.direct_or_indirect_references.include?(self)
+    raise "Circular reference detected when adding reference #{cell.ref} to #{ref}!" if cell.directly_or_indirectly_references?(self)
 
     puts "Adding reference #{cell.ref} to #{ref}" if DEBUG
 
@@ -208,4 +204,4 @@ puts e1.eval
 c1.content = '= B1 + 200'
 puts e1.eval
 
-a1.content = '= E1'
+a1.content = '= F1 * G1 ** E1 - 10'
