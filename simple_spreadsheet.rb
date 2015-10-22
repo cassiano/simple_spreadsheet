@@ -106,7 +106,7 @@ class Spreadsheet
             evaluated_content.gsub! cell.ref.to_s, cell.eval.to_s
           end
 
-          Kernel.eval evaluated_content
+          Formula.instance_eval { eval evaluated_content }
         else
           content
         end
@@ -163,6 +163,14 @@ class Spreadsheet
 
     def is_formula?
       String === content && content[0] == '='
+    end
+  end
+
+  class Formula
+    def self.sum(*cell_values)
+      puts "Calling sum() for #{cell_values.inspect}" if DEBUG
+
+      cell_values.inject(:+)
     end
   end
 end
