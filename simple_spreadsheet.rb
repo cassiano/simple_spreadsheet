@@ -34,7 +34,7 @@ class Spreadsheet
   end
 
   class Cell
-    CELL_REF_REG_EXP = /[A-Z]+\d+/i
+    CELL_REF_REG_EXP = /\b[A-Z]+[1-9]\d*\b/i
     DEFAULT_VALUE    = 0
 
     # List of possible exceptions.
