@@ -37,8 +37,11 @@ class Spreadsheet
   end
 
   class Cell
-    CELL_REF_REG_EXP = /\b[A-Z]+[1-9]\d*\b/i
-    DEFAULT_VALUE    = 0
+    CELL_REF1          = '\b[A-Z]+[1-9]\d*\b'
+    CELL_REF2          = '\b([A-Z]+)([1-9]\d*)\b'
+    CELL_REF_REG_EXP   = /#{CELL_REF1}/i
+    CELL_RANGE_REG_EXP = /(#{CELL_REF1}):(#{CELL_REF1})/i
+    DEFAULT_VALUE      = 0
 
     # List of possible exceptions.
     class CircularReferenceError < StandardError; end
@@ -168,6 +171,8 @@ class Spreadsheet
 
   class Formula
     def self.sum(*cell_values)
+      cell_values.flatten!
+
       puts "Calling sum() for #{cell_values.inspect}" if DEBUG
 
       cell_values.inject(:+)

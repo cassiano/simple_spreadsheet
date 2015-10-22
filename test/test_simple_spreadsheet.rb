@@ -134,15 +134,18 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1: 1,
         a2: 2,
         a3: 3,
-        a4: '= sum(A1, A2, A3)'
+        a4: '= sum(A1, A2, A3)',
+        a5: '= sum([A1, A2, A3])'
       }
 
       a1 = @spreadsheet.add_cell :A1, contents[:a1]
       a2 = @spreadsheet.add_cell :A2, contents[:a2]
       a3 = @spreadsheet.add_cell :A3, contents[:a3]
       a4 = @spreadsheet.add_cell :A4, contents[:a4]
+      a5 = @spreadsheet.add_cell :A5, contents[:a5]
 
       assert_equal Spreadsheet::Formula.sum(contents[:a1], contents[:a2], contents[:a3]), a4.eval
+      assert_equal Spreadsheet::Formula.sum(contents[:a1], contents[:a2], contents[:a3]), a5.eval
     end
   end
 end
