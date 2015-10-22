@@ -167,6 +167,21 @@ class Spreadsheet
     def is_formula?
       String === content && content[0] == '='
     end
+
+    def self.cells_in_range(upper_left_ref, lower_right_ref)
+      ul_col, ul_row = get_column_and_row(upper_left_ref)
+      lr_col, lr_row = get_column_and_row(lower_right_ref)
+
+      (ul_row..lr_row).map do |row|
+        (ul_col..lr_col).map do |col|
+          "#{col}#{row}"
+        end
+      end
+    end
+
+    def self.get_column_and_row(ref)
+      ref.to_s =~ CELL_REF2 && [$1.upcase.to_sym, $2.to_i]
+    end
   end
 
   class Formula
