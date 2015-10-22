@@ -66,7 +66,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal (contents[:a1] + contents[:a2]) * 3, a3.eval
       end
 
-      test 'can hold formulas, given referencing are not circular' do
+      test 'cannot have circular references in formulas' do
         contents = {
           a1: '= A2',
           a2: '= A3',
@@ -101,23 +101,31 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'saves references to other cells' do
-        a1 = @spreadsheet.add_cell :A1, '= A2'
+        a1 = @spreadsheet.add_cell :A1, '= A2 + A3 + A4'
         a2 = @spreadsheet.find_or_create_cell :A2
+        a3 = @spreadsheet.find_or_create_cell :A3
+        a4 = @spreadsheet.find_or_create_cell :A4
 
         references = Set.new
         references << a2
+        references << a3
+        references << a4
 
         assert_equal references, a1.references
       end
 
       test 'are marked as observers in other cells when referencing them' do
-        a1 = @spreadsheet.add_cell :A1, '= A2'
+        a1 = @spreadsheet.add_cell :A1, '= A2 + A3 + A4'
         a2 = @spreadsheet.find_or_create_cell :A2
+        a3 = @spreadsheet.find_or_create_cell :A3
+        a4 = @spreadsheet.find_or_create_cell :A4
 
         observers = Set.new
         observers << a1
 
         assert_equal observers, a2.observers
+        assert_equal observers, a3.observers
+        assert_equal observers, a4.observers
       end
     end
   end
