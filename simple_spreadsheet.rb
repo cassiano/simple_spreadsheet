@@ -3,6 +3,9 @@ DEBUG = false
 require 'set'
 
 class Spreadsheet
+  # List of possible exceptions.
+  class AlreadyExistentCellError < StandardError; end
+
   attr_reader :cells
 
   def initialize
@@ -24,7 +27,7 @@ class Spreadsheet
   end
 
   def add_cell(ref, content = nil)
-    raise "Cell #{ref} already exists" if cells[ref]
+    raise AlreadyExistentCellError, "Cell #{ref} already exists" if cells[ref]
 
     ref = ref.upcase.to_sym
 
