@@ -149,15 +149,50 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     test '.cells_in_range works for cells in same row' do
-      assert_equal [:A1, :B1, :C1], Spreadsheet::Cell.cells_in_range(:A1, :C1)
+      assert_equal [[:A1, :B1, :C1]], Spreadsheet::Cell.cells_in_range(:A1, :C1)
     end
 
     test '.cells_in_range works for cells in same column' do
-      assert_equal [:A1, :A2, :A3], Spreadsheet::Cell.cells_in_range(:A1, :A3)
+      assert_equal [[:A1], [:A2], [:A3]], Spreadsheet::Cell.cells_in_range(:A1, :A3)
     end
 
     test '.cells_in_range works for cells in distinct rows and columns' do
-      assert_equal [[:A1, :A2, :A3], [:B1, :B2, :B3], [:C1, :C2, :C3]], Spreadsheet::Cell.cells_in_range(:A1, :C3)
+      assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], Spreadsheet::Cell.cells_in_range(:A1, :C3)
+    end
+
+    test 'can hold formulas with functions which include cell ranges' do
+      contents = {
+        a1: 1,
+        b1: 2,
+        c1: 3,
+        a2: 1,
+        b2: 2,
+        c2: 3,
+        a3: 1,
+        b3: 2,
+        c3: 3,
+        a4: '= sum(A1:C3)'
+      }
+
+      a1 = @spreadsheet.add_cell :A1, contents[:a1]
+      b1 = @spreadsheet.add_cell :B1, contents[:b1]
+      c1 = @spreadsheet.add_cell :C1, contents[:c1]
+      a2 = @spreadsheet.add_cell :A2, contents[:a2]
+      b2 = @spreadsheet.add_cell :B2, contents[:b2]
+      c2 = @spreadsheet.add_cell :C2, contents[:c2]
+      a3 = @spreadsheet.add_cell :A3, contents[:a2]
+      b3 = @spreadsheet.add_cell :B3, contents[:b2]
+      c4 = @spreadsheet.add_cell :C3, contents[:c2]
+      a4 = @spreadsheet.add_cell :A4, contents[:a4]
+
+      assert_equal Spreadsheet::Formula.sum(
+        contents[:a1], contents[:b1], contents[:c1],
+        contents[:a2], contents[:b2], contents[:c2],
+        contents[:a3], contents[:b3], contents[:c3]
+      ), a4.eval
+    end
+
+    test 'changes in references are automatically reflected in dependent cells' do
     end
   end
 end

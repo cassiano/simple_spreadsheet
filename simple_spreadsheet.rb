@@ -40,7 +40,8 @@ class Spreadsheet
     CELL_REF1          = '\b[A-Z]+[1-9]\d*\b'
     CELL_REF2          = '\b([A-Z]+)([1-9]\d*)\b'
     CELL_REF_REG_EXP   = /#{CELL_REF1}/i
-    CELL_RANGE_REG_EXP = /(#{CELL_REF1}):(#{CELL_REF1})/i
+    CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
+    CELL_RANGE_REG_EXP = /((#{CELL_REF1}):(#{CELL_REF1}))/i
     DEFAULT_VALUE      = 0
 
     # List of possible exceptions.
@@ -74,16 +75,26 @@ class Spreadsheet
     end
 
     def content=(new_content)
+      new_content = new_content.strip if String === new_content
+
       old_references = Set.new
       new_references = Set.new
 
       old_references = references.clone if is_formula?
 
       # Notice this may change the value returned by method `is_formula?`.
-      @content = String === new_content ? new_content.strip : new_content
+      @content = new_content
 
       if is_formula?
-        new_references = content[1..-1].scan(CELL_REF_REG_EXP).inject Set.new do |memo, ref|
+        # Find & replace all ranges, e.g., 'A1:A3' for '[[A1, A2, A3]]'.
+        new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
+          new_content.gsub! range, self.class.cells_in_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+        end
+
+        @content = new_content if @content != new_content
+
+        # Now find all references.
+        new_references = new_content[1..-1].scan(CELL_REF_REG_EXP).inject Set.new do |memo, ref|
           memo << spreadsheet.find_or_create_cell(ref)
         end
       end
@@ -121,7 +132,7 @@ class Spreadsheet
     end
 
     def directly_or_indirectly_references?(cell)
-      references.include?(cell) || references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
+      cell == self || references.include?(cell) || references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
     end
 
     private
@@ -174,23 +185,21 @@ class Spreadsheet
 
       (ul_row..lr_row).map do |row|
         (ul_col..lr_col).map do |col|
-          "#{col}#{row}"
+          "#{col}#{row}".to_sym
         end
       end
     end
 
     def self.get_column_and_row(ref)
-      ref.to_s =~ CELL_REF2 && [$1.upcase.to_sym, $2.to_i]
+      ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
     end
   end
 
   class Formula
     def self.sum(*cell_values)
-      cell_values.flatten!
-
       puts "Calling sum() for #{cell_values.inspect}" if DEBUG
 
-      cell_values.inject(:+)
+      cell_values.flatten.inject :+
     end
   end
 end
