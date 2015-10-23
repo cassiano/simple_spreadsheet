@@ -148,16 +148,16 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal Spreadsheet::Formula.sum(contents[:a1], contents[:a2], contents[:a3]), a5.eval
     end
 
-    test '.cells_in_range works for cells in same row' do
-      assert_equal [[:A1, :B1, :C1]], Spreadsheet::Cell.cells_in_range(:A1, :C1)
+    test '.splat_range works for cells in same row' do
+      assert_equal [[:A1, :B1, :C1]], Spreadsheet::Cell.splat_range(:A1, :C1)
     end
 
-    test '.cells_in_range works for cells in same column' do
-      assert_equal [[:A1], [:A2], [:A3]], Spreadsheet::Cell.cells_in_range(:A1, :A3)
+    test '.splat_range works for cells in same column' do
+      assert_equal [[:A1], [:A2], [:A3]], Spreadsheet::Cell.splat_range(:A1, :A3)
     end
 
-    test '.cells_in_range works for cells in distinct rows and columns' do
-      assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], Spreadsheet::Cell.cells_in_range(:A1, :C3)
+    test '.splat_range works for cells in distinct rows and columns' do
+      assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], Spreadsheet::Cell.splat_range(:A1, :C3)
     end
 
     test 'can hold formulas with functions which include cell ranges' do

@@ -88,7 +88,7 @@ class Spreadsheet
       if is_formula?
         # Find & replace all ranges, e.g., 'A1:A3' for '[[A1, A2, A3]]'.
         new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-          new_content.gsub! range, self.class.cells_in_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+          new_content.gsub! range, self.class.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
 
         @content = new_content if @content != new_content
@@ -179,7 +179,7 @@ class Spreadsheet
       String === content && content[0] == '='
     end
 
-    def self.cells_in_range(upper_left_ref, lower_right_ref)
+    def self.splat_range(upper_left_ref, lower_right_ref)
       ul_col, ul_row = get_column_and_row(upper_left_ref)
       lr_col, lr_row = get_column_and_row(lower_right_ref)
 
