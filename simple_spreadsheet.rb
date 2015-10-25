@@ -12,11 +12,9 @@ class Spreadsheet
     @cells = {}
   end
 
-  # def set(ref, content = nil)
-  #   cell = find_or_create_cell(ref)
-  #
-  #   cell.content = content
-  # end
+  def update_cell_ref(ref, cell)
+    cells[ref] = cell
+  end
 
   def find_or_create_cell(ref, content = nil)
     ref = ref.upcase.to_sym
@@ -26,6 +24,8 @@ class Spreadsheet
     end
   end
 
+  alias_method :set, :find_or_create_cell
+
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if cells[ref]
 
@@ -33,7 +33,12 @@ class Spreadsheet
 
     Cell.new(self, ref, content).tap do |cell|
       cells[ref] = cell
+      # update_cell_ref ref, cell
     end
+  end
+
+  def update_cell_ref(old_ref, new_ref)
+    cells[new_ref] = cells.delete(old_ref)
   end
 
   class Cell
@@ -43,11 +48,12 @@ class Spreadsheet
     CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
     CELL_RANGE_REG_EXP = /((#{CELL_REF1}):(#{CELL_REF1}))/i
     DEFAULT_VALUE      = 0
+    COL_RANGE          = ('A'..'ZZZ').to_a.map(&:to_sym)
 
     # List of possible exceptions.
     class CircularReferenceError < StandardError; end
 
-    attr_reader :spreadsheet, :ref, :references, :observers, :content
+    attr_reader :spreadsheet, :ref, :references, :observers, :content, :last_evaluated_at
 
     def initialize(spreadsheet, ref, content = nil)
       puts "Creating cell #{ref}" if DEBUG
@@ -82,11 +88,10 @@ class Spreadsheet
 
       old_references = references.clone if is_formula?
 
-      # Notice this may change the value returned by method `is_formula?`.
       @content = new_content
 
       if is_formula?
-        # Find & replace all ranges, e.g., 'A1:A3' for '[[A1, A2, A3]]'.
+        # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
         new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
           new_content.gsub! range, self.class.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
@@ -114,6 +119,8 @@ class Spreadsheet
         if is_formula?
           puts ">>> Calculating formula for #{self.ref}" if DEBUG
 
+          @last_evaluated_at = Time.now
+
           evaluated_content = content[1..-1]
 
           references.each do |cell|
@@ -133,6 +140,45 @@ class Spreadsheet
 
     def directly_or_indirectly_references?(cell)
       cell == self || references.include?(cell) || references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
+    end
+
+    def copy_to(dest_ref)
+      dest_content = content.clone
+
+      references.each do |reference|
+        dest_content.gsub! reference.ref.to_s, reference.new_ref(ref, dest_ref).to_s
+      end
+
+      spreadsheet.set dest_ref, dest_content
+    end
+
+    def move_to(dest_ref)
+      source_ref = ref
+      @ref    = dest_ref
+
+      spreadsheet.update_cell_ref source_ref, dest_ref
+
+      observers.each do |observer|
+        observer.update_reference source_ref, dest_ref
+      end
+    end
+
+    def update_reference(old_ref, new_ref)
+      self.content = self.content.gsub(old_ref.to_s, new_ref.to_s)
+    end
+
+    def new_ref(source_ref, dest_ref)
+      ref_col, ref_row       = self.class.get_column_and_row(ref)
+      source_col, source_row = self.class.get_column_and_row(source_ref)
+      dest_col, dest_row     = self.class.get_column_and_row(dest_ref)
+
+      col_diff = COL_RANGE.index(dest_col) - COL_RANGE.index(source_col)
+      row_diff = dest_row - source_row
+
+      new_col = COL_RANGE[COL_RANGE.index(ref_col) + col_diff]
+      new_row = ref_row + row_diff
+
+      "#{new_col}#{new_row}".to_sym
     end
 
     private
@@ -203,54 +249,3 @@ class Spreadsheet
     end
   end
 end
-
-spreadsheet = Spreadsheet.new
-
-# a1 = spreadsheet.add_cell :A1, 10
-# b1 = spreadsheet.add_cell :B1, 20
-# c1 = spreadsheet.add_cell :C1, '= (A1 + B1) * 2'
-# d1 = spreadsheet.add_cell :D1, '= C1 - 1'
-#
-# puts c1.references.map(&:ref).inspect
-# puts a1.observers.map(&:ref).inspect
-# puts b1.observers.map(&:ref).inspect
-# puts c1.content
-# puts c1.eval
-# puts d1.eval
-#
-# c1.content = '= (A2 + B1) ** 2'
-# puts a1.observers.map(&:ref).inspect
-# puts b1.observers.map(&:ref).inspect
-# b2 = spreadsheet.find_or_create_cell(:a2)
-# puts b2.observers.map(&:ref).inspect
-# puts c1.content
-# puts c1.eval
-#
-# a1.content = 1
-# puts c1.eval
-#
-# b1.content = 2
-# puts c1.eval
-#
-# b1.content = -2
-# puts c1.eval
-# puts d1.eval
-
-# a1 = spreadsheet.add_cell :A1, 10
-# b1 = spreadsheet.add_cell :B1, '= A1 + 1'
-# c1 = spreadsheet.add_cell :C1, '= B1 + 2'
-# d1 = spreadsheet.add_cell :D1, '= C1 + 3'
-# e1 = spreadsheet.add_cell :E1, '       = D1 + 4        '
-#
-# puts e1.eval
-#
-# a1.content = 20
-# puts e1.eval
-#
-# c1.content = 100
-# puts e1.eval
-#
-# c1.content = '= B1 + 200'
-# puts e1.eval
-#
-# a1.content = '= F1 * G1 ** E1 - 10'
