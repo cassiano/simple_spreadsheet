@@ -134,10 +134,12 @@ class Spreadsheet
 
   def repl
     loop do
-      print "Enter ref: "
+      print "Enter ref (type `q` or `quit` to exit): "
       ref = gets.chomp
 
-      print "Enter content: "
+      break if ['quit', 'q'].include?(ref.downcase)
+
+      print "Enter content (for formulas start with a '=' and user only uppercase cell references): "
       content = gets.chomp
 
       begin
