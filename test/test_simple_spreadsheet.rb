@@ -8,8 +8,12 @@ class TestSpreadsheet < Test::Unit::TestCase
       @spreadsheet = Spreadsheet.new
     end
 
+    teardown do
+      assert @spreadsheet.consistent? unless @invalid_spreadsheet_being_tested
+    end
+
     test 'new and empty spreadsheets have no cells' do
-      assert_equal 0, @spreadsheet.cells.count
+      assert_equal 0, @spreadsheet.cell_count
     end
 
     test '#find_or_create_cell finds preexistent cells' do
@@ -55,6 +59,8 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'cannot have circular references in formulas' do
+        @invalid_spreadsheet_being_tested = true
+
         assert_nothing_raised do
           a1 = @spreadsheet.set :A1, '= A2'
           a2 = @spreadsheet.set :A2, '= A3'
@@ -64,6 +70,14 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_raises Spreadsheet::Cell::CircularReferenceError do
           a5 = @spreadsheet.set :A5, '= A1'
+        end
+      end
+
+      test 'cannot have auto references in formulas' do
+        @invalid_spreadsheet_being_tested = true
+
+        assert_raises Spreadsheet::Cell::CircularReferenceError do
+          a1 = @spreadsheet.set :A1, '= A1'
         end
       end
 
@@ -174,13 +188,13 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 1 + 8 + 4, a4.eval
       end
 
-      test '.move_to' do
+      test '.move_to!' do
         old_a1 = @spreadsheet.set :A1, 1
         a2     = @spreadsheet.set :A2, 2
-        a3     = @spreadsheet.set :A3, '= (A1 + A2) * 3'
+        a3     = @spreadsheet.set :A3, '= A1 + A2'
         a4     = @spreadsheet.set :A4, '= A3'
 
-        assert_equal (a3_value = (1 + 2) * 3), a3.eval
+        assert_equal (a3_value = 1 + 2), a3.eval
 
         a3_last_evaluated_at = a3.last_evaluated_at
         a4_last_evaluated_at = a4.last_evaluated_at
@@ -189,16 +203,16 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1_observers << a3
         assert_equal a1_observers, old_a1.observers
 
-        # Move A1 to B1, so (old) A1 actually "becomes" B1.
-        old_a1.move_to :B1
+        # Move A1 to C5, so (old) A1 actually "becomes" C5.
+        old_a1.move_to! :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
-        b1 = @spreadsheet.find_or_create_cell :B1
+        c5 = @spreadsheet.find_or_create_cell :C5
         a3_references = Set.new
+        a3_references << c5
         a3_references << a2
-        a3_references << b1
-        assert_equal old_a1, b1
-        assert_equal '= (B1 + A2) * 3', a3.content
+        assert_equal old_a1, c5
+        assert_equal '= C5 + A2', a3.content
         assert_equal a3_references, a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
@@ -209,10 +223,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
         assert_equal new_a1_observers, new_a1.observers
 
-        # Assert B1 is now being observed by A3.
-        b1_observers = Set.new
-        b1_observers << a3
-        assert_equal b1_observers, b1.observers
+        # Assert C5 is now being observed by A3, instead of A1.
+        c5_observers = Set.new
+        c5_observers << a3
+        assert_equal c5_observers, c5.observers
 
         # Assert A4 hasn't been reevaluated, since A3's value never actually changed.
         assert_equal a4_last_evaluated_at, a4.last_evaluated_at
@@ -221,11 +235,11 @@ class TestSpreadsheet < Test::Unit::TestCase
       test '.copy_to' do
         a1 = @spreadsheet.set :A1, 1
         a2 = @spreadsheet.set :A2, 2
-        a3 = @spreadsheet.set :A3, '= (A1 + A2) * 3'
+        a3 = @spreadsheet.set :A3, '= A1 + A2'
         b1 = @spreadsheet.set :B1, 10
         b2 = @spreadsheet.set :B2, 20
 
-        assert_equal (a3_value = (1 + 2) * 3), a3.eval
+        assert_equal (a3_value = 1 + 2), a3.eval
 
         # Copy A3 to B3.
         a3.copy_to :B3
@@ -235,8 +249,76 @@ class TestSpreadsheet < Test::Unit::TestCase
         b3_references = Set.new
         b3_references << b1
         b3_references << b2
-        assert_equal '= (B1 + B2) * 3', b3.content
-        assert_equal (10 + 20) * 3, b3.eval
+        assert_equal '= B1 + B2', b3.content
+        assert_equal 10 + 20, b3.eval
+      end
+
+      test '.move_right!' do
+        a1 = @spreadsheet.set :A1, 1
+
+        a1.move_right!
+
+        new_a1 = @spreadsheet.find_or_create_cell :A1
+        b1     = @spreadsheet.find_or_create_cell :B1
+
+        assert_equal a1, b1
+        assert_equal 1, b1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+      end
+
+      test '.move_left!' do
+        b1 = @spreadsheet.set :B1, 1
+
+        b1.move_left!
+
+        new_b1 = @spreadsheet.find_or_create_cell :B1
+        a1     = @spreadsheet.find_or_create_cell :A1
+
+        assert_equal a1, b1
+        assert_equal 1, b1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_b1.eval
+      end
+
+      test '.move_left! should raise an error when move is not possible' do
+        a1 = @spreadsheet.set :A1
+
+        assert_raises Spreadsheet::Cell::IllegalMoveError do
+          a1.move_left!
+        end
+      end
+
+      test '.move_down!' do
+        a1 = @spreadsheet.set :A1, 1
+
+        a1.move_down!
+
+        new_a1 = @spreadsheet.find_or_create_cell :A1
+        a2     = @spreadsheet.find_or_create_cell :A2
+
+        assert_equal a1, a2
+        assert_equal 1, a2.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+      end
+
+      test '.move_up!' do
+        a2 = @spreadsheet.set :A2, 1
+
+        a2.move_up!
+
+        new_a2 = @spreadsheet.find_or_create_cell :A2
+        a1     = @spreadsheet.find_or_create_cell :A1
+
+        assert_equal a2, a1
+        assert_equal 1, a1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a2.eval
+      end
+
+      test '.move_up! should raise an error when move is not possible' do
+        a1 = @spreadsheet.set :A1
+
+        assert_raises Spreadsheet::Cell::IllegalMoveError do
+          a1.move_up!
+        end
       end
     end
   end

@@ -3,23 +3,31 @@ DEBUG = false
 require 'set'
 
 class Spreadsheet
+  PP_CELL_SIZE     = 20
+  PP_ROW_REF_SIZE  = 5
+  PP_COL_DELIMITER = ' | '
+
   # List of possible exceptions.
   class AlreadyExistentCellError < StandardError; end
 
   attr_reader :cells
 
   def initialize
-    @cells = {}
+    @cells = {
+      all: {},
+      by_column: {},
+      by_row: {}
+    }
   end
 
-  def update_cell_ref(ref, cell)
-    cells[ref] = cell
+  def cell_count
+    cells[:all].values.compact.size
   end
 
   def find_or_create_cell(ref, content = nil)
-    ref = ref.upcase.to_sym
+    ref = self.class.normalize_cell_ref(ref)
 
-    (cells[ref] || add_cell(ref)).tap do |cell|
+    (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
       cell.content = content if content
     end
   end
@@ -27,18 +35,143 @@ class Spreadsheet
   alias_method :set, :find_or_create_cell
 
   def add_cell(ref, content = nil)
-    raise AlreadyExistentCellError, "Cell #{ref} already exists" if cells[ref]
+    raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
 
-    ref = ref.upcase.to_sym
+    ref = self.class.normalize_cell_ref(ref)
 
     Cell.new(self, ref, content).tap do |cell|
-      cells[ref] = cell
-      # update_cell_ref ref, cell
+      update_cell_ref ref, cell
     end
   end
 
-  def update_cell_ref(old_ref, new_ref)
-    cells[new_ref] = cells.delete(old_ref)
+  def move_cell(old_ref, new_ref)
+    cell = find_cell_ref(old_ref)
+
+    update_cell_ref old_ref, nil
+    update_cell_ref new_ref, cell
+  end
+
+  def add_row(row)
+    bottom_rows = cells[:by_row].find_all { |row_ref| row_ref >= row }
+
+    bottom_rows.sort.each do |(_, row_cells)|
+      row_cells.each &:move_down!
+    end
+  end
+
+  def add_column(column)
+    columns_to_the_right = cells[:by_column].find_all do |column_ref|
+      self.class.column_ref_index(column_ref) >= self.class.column_ref_index(column)
+    end
+
+    columns_to_the_right.map { |k, v| { self.class.column_ref_index(k) => v } }.sort.each do |(_, column_cells)|
+      column_cells.each &:move_right!
+    end
+  end
+
+  def consistent?
+    cells[:all].all? do |(_, cell)|
+      consistent =
+        if cell.has_formula?
+          cell.find_references == cell.references && cell.references.all? do |reference|
+            reference.observers.include? cell
+          end
+        else
+          cell.references.empty?
+        end
+
+      consistent && cell.observers.all? do |observer|
+        observer.references.include? cell
+      end
+
+      col, row = Cell::get_column_and_row(cell.ref)
+
+      consistent &&
+        cells[:by_column][col]  && cells[:by_column][col][row]  == cell &&
+        cells[:by_row][row]     && cells[:by_row][row][col]     == cell
+    end
+  end
+
+  def pp
+    sorted_columns = cells[:by_column].map { |k, v| { self.class.column_ref_index(k) => v } }.sort { |a, b| a.keys[0] <=> b.keys[0] }
+    sorted_rows    = cells[:by_row].sort
+
+    max_col, _ = (max = sorted_columns.max { |a, b| a.keys[0] <=> b.keys[0] }) && max.keys[0]
+    max_row, _ = sorted_rows.max
+
+    if max_col && max_row
+      print ' ' * PP_ROW_REF_SIZE
+      puts (1..max_col).map { |col| Cell::COL_RANGE[col].to_s.rjust(PP_CELL_SIZE) }.join(PP_COL_DELIMITER)
+
+      print ' ' * PP_ROW_REF_SIZE
+      max_col.times do |i|
+        print '-' * (PP_CELL_SIZE + 1 + (i == 0 ? 0 : 1))
+        print '+' if i < max_col - 1
+      end
+      puts
+
+      (1..max_row).each do |row|
+        print "#{row}:".rjust(PP_ROW_REF_SIZE)
+
+        (1..max_col).each  do |col|
+          print PP_COL_DELIMITER if col > 1
+
+          if (cell = cells[:by_row][row] && cells[:by_row][row][Cell::COL_RANGE[col]])
+            print (cell.eval.to_s + (cell.has_formula? ? " (`#{cell.content}`)" : '')).rjust(PP_CELL_SIZE)
+          else
+            print ' ' * PP_CELL_SIZE
+          end
+        end
+
+        puts
+      end
+    else
+      puts 'Empty spreadsheet'
+    end
+
+    nil
+  end
+
+  def repl
+    loop do
+      print "Enter ref: "
+      ref = gets.chomp
+
+      print "Enter content: "
+      content = gets.chomp
+
+      begin
+        set ref, content
+      rescue StandardError => e
+        puts "Error: `#{e}`. Please reenter data."
+        next
+      end
+
+      pp
+    end
+  end
+
+  def self.normalize_cell_ref(ref)
+    ref.upcase.to_sym
+  end
+
+  def self.column_ref_index(column_ref)
+    Cell::COL_RANGE.index column_ref
+  end
+
+  private
+
+  def find_cell_ref(ref)
+    cells[:all][ref]
+  end
+
+  def update_cell_ref(ref, cell)
+    col, row = Cell::get_column_and_row(ref)
+
+    cells[:by_column][col]  ||= {}
+    cells[:by_row][row]     ||= {}
+
+    cells[:all][ref] = cells[:by_column][col][row] = cells[:by_row][row][col] = cell
   end
 
   class Cell
@@ -48,17 +181,18 @@ class Spreadsheet
     CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
     CELL_RANGE_REG_EXP = /((#{CELL_REF1}):(#{CELL_REF1}))/i
     DEFAULT_VALUE      = 0
-    COL_RANGE          = ('A'..'ZZZ').to_a.map(&:to_sym)
+    COL_RANGE          = [nil] + ('A'..'ZZZ').to_a.map(&:to_sym)
 
     # List of possible exceptions.
     class CircularReferenceError < StandardError; end
+    class IllegalMoveError < StandardError; end
 
     attr_reader :spreadsheet, :ref, :references, :observers, :content, :last_evaluated_at
 
     def initialize(spreadsheet, ref, content = nil)
       puts "Creating cell #{ref}" if DEBUG
 
-      ref = ref.upcase.to_sym
+      ref = Spreadsheet.normalize_cell_ref(ref)
 
       @spreadsheet = spreadsheet
       @ref         = ref
@@ -86,11 +220,11 @@ class Spreadsheet
       old_references = Set.new
       new_references = Set.new
 
-      old_references = references.clone if is_formula?
+      old_references = references.clone if has_formula?
 
       @content = new_content
 
-      if is_formula?
+      if has_formula?
         # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
         new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
           new_content.gsub! range, self.class.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
@@ -99,9 +233,7 @@ class Spreadsheet
         @content = new_content if @content != new_content
 
         # Now find all references.
-        new_references = new_content[1..-1].scan(CELL_REF_REG_EXP).inject Set.new do |memo, ref|
-          memo << spreadsheet.find_or_create_cell(ref)
-        end
+        new_references = find_references
       end
 
       add_references    new_references - old_references
@@ -110,13 +242,23 @@ class Spreadsheet
       eval true
     end
 
+    def find_references
+      if has_formula?
+        content[1..-1].scan(CELL_REF_REG_EXP).inject(Set.new) do |memo, ref|
+          memo << spreadsheet.find_or_create_cell(ref)
+        end
+      else
+        Set.new
+      end
+    end
+
     def eval(reevaluate = false)
       previous_content = @evaluated_content
 
       @evaluated_content = nil if reevaluate
 
       @evaluated_content ||=
-        if is_formula?
+        if has_formula?
           puts ">>> Calculating formula for #{self.ref}" if DEBUG
 
           @last_evaluated_at = Time.now
@@ -139,7 +281,9 @@ class Spreadsheet
     end
 
     def directly_or_indirectly_references?(cell)
-      cell == self || references.include?(cell) || references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
+      cell == self ||
+        references.include?(cell) ||
+        references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
     end
 
     def copy_to(dest_ref)
@@ -152,15 +296,47 @@ class Spreadsheet
       spreadsheet.set dest_ref, dest_content
     end
 
-    def move_to(dest_ref)
+    def move_to!(dest_ref)
       source_ref = ref
-      @ref    = dest_ref
+      @ref       = dest_ref
 
-      spreadsheet.update_cell_ref source_ref, dest_ref
+      spreadsheet.move_cell source_ref, dest_ref
 
       observers.each do |observer|
         observer.update_reference source_ref, dest_ref
       end
+    end
+
+    def move_right!(column_count = 1)
+      ref_col, ref_row = self.class.get_column_and_row(ref)
+
+      dest_col = COL_RANGE[COL_RANGE.index(ref_col) + column_count]
+
+      move_to! "#{dest_col}#{ref_row}".to_sym
+    end
+
+    def move_left!(column_count = 1)
+      ref_col, ref_row = self.class.get_column_and_row(ref)
+
+      raise IllegalMoveError if COL_RANGE.index(ref_col) <= column_count
+
+      dest_col = COL_RANGE[COL_RANGE.index(ref_col) - column_count]
+
+      move_to! "#{dest_col}#{ref_row}".to_sym
+    end
+
+    def move_down!(row_count = 1)
+      ref_col, ref_row = self.class.get_column_and_row(ref)
+
+      move_to! "#{ref_col}#{ref_row + row_count}".to_sym
+    end
+
+    def move_up!(row_count = 1)
+      ref_col, ref_row = self.class.get_column_and_row(ref)
+
+      raise IllegalMoveError if ref_row <= row_count
+
+      move_to! "#{ref_col}#{ref_row - row_count}".to_sym
     end
 
     def update_reference(old_ref, new_ref)
@@ -179,6 +355,10 @@ class Spreadsheet
       new_row = ref_row + row_diff
 
       "#{new_col}#{new_row}".to_sym
+    end
+
+    def has_formula?
+      String === content && content[0] == '='
     end
 
     private
@@ -221,10 +401,6 @@ class Spreadsheet
       end
     end
 
-    def is_formula?
-      String === content && content[0] == '='
-    end
-
     def self.splat_range(upper_left_ref, lower_right_ref)
       ul_col, ul_row = get_column_and_row(upper_left_ref)
       lr_col, lr_row = get_column_and_row(lower_right_ref)
@@ -249,3 +425,5 @@ class Spreadsheet
     end
   end
 end
+
+Spreadsheet.new.repl
