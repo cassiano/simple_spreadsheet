@@ -428,4 +428,8 @@ class Spreadsheet
   end
 end
 
-Spreadsheet.new.repl
+def run!
+  Spreadsheet.new.repl
+end
+
+run! if __FILE__ == $0
