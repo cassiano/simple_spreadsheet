@@ -9,7 +9,7 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     teardown do
-      assert @spreadsheet.consistent? unless @invalid_spreadsheet_being_tested
+      assert @spreadsheet.consistent? unless @skip_teardown
     end
 
     test 'new and empty spreadsheets have no cells' do
@@ -59,7 +59,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'cannot have circular references in formulas' do
-        @invalid_spreadsheet_being_tested = true
+        @skip_teardown = true
 
         assert_nothing_raised do
           a1 = @spreadsheet.set :A1, '= A2'
@@ -74,7 +74,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'cannot have auto references in formulas' do
-        @invalid_spreadsheet_being_tested = true
+        @skip_teardown = true
 
         assert_raises Spreadsheet::Cell::CircularReferenceError do
           a1 = @spreadsheet.set :A1, '= A1'
