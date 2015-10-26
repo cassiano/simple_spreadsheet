@@ -268,7 +268,7 @@ class Spreadsheet
           evaluated_content = content[1..-1]
 
           references.each do |cell|
-            evaluated_content.gsub! cell.ref.to_s, cell.eval.to_s
+            evaluated_content.gsub! Regexp.new(cell.ref.to_s, Regexp::IGNORECASE), cell.eval.to_s
           end
 
           Formula.instance_eval { eval evaluated_content }
