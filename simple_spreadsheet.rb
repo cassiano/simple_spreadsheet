@@ -121,7 +121,7 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][Cell::COL_RANGE[col]])
-            print (cell.eval.to_s + (cell.has_formula? ? " (`#{cell.content}`)" : '')).rjust(PP_CELL_SIZE)
+            print ((cell.has_formula? ? "(`#{cell.raw_content}`) " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
           end
@@ -197,7 +197,7 @@ class Spreadsheet
     class CircularReferenceError < StandardError; end
     class IllegalMoveError < StandardError; end
 
-    attr_reader :spreadsheet, :ref, :references, :observers, :content, :last_evaluated_at
+    attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
 
     def initialize(spreadsheet, ref, content = nil)
       puts "Creating cell #{ref}" if DEBUG
@@ -232,15 +232,18 @@ class Spreadsheet
 
       old_references = references.clone if has_formula?
 
-      @content = new_content
+      @raw_content, @content =
+        if String === new_content
+          [new_content.clone, new_content.clone]
+        else
+          [new_content, new_content]
+        end
 
       if has_formula?
         # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-        new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-          new_content.gsub! range, Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+        @content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
+          @content.gsub! range, Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
-
-        @content = new_content if @content != new_content
 
         # Now find all references.
         new_references = find_references

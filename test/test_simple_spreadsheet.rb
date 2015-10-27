@@ -37,23 +37,23 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal a1, @spreadsheet.find_or_create_cell('a1')
     end
 
-    test '#add_column' do
-      a1 = @spreadsheet.set :A1, 1
-      b1 = @spreadsheet.set :B1, 2
-      a2 = @spreadsheet.set :A2, 3
-      b2 = @spreadsheet.set :B2, 4
-
-      @spreadsheet.add_column :A
-
-      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
-      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
-      assert_equal 1,                                 @spreadsheet.find_or_create_cell(:B1)
-      assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
-      assert_equal 3,                                 @spreadsheet.find_or_create_cell(:C1)
-      assert_equal 4,                                 @spreadsheet.find_or_create_cell(:C2)
-      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
-      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
-    end
+    # test '#add_column' do
+    #   a1 = @spreadsheet.set :A1, 1
+    #   b1 = @spreadsheet.set :B1, 2
+    #   a2 = @spreadsheet.set :A2, 3
+    #   b2 = @spreadsheet.set :B2, 4
+    #
+    #   @spreadsheet.add_column :A
+    #
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
+    #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:B1)
+    #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
+    #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:C1)
+    #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:C2)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
+    # end
 
     # test '#add_row' do
     #   a1 = @spreadsheet.set :A1, 1
