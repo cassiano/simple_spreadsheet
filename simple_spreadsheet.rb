@@ -142,6 +142,7 @@ class Spreadsheet
       ref = gets.chomp
 
       break if ['quit', 'q'].include?(ref.downcase)
+      next if ref !~ Cell::CELL_REF_REG_EXP
 
       print "Enter content (for formulas start with a '=' and user only uppercase cell references): "
       content = gets.chomp
