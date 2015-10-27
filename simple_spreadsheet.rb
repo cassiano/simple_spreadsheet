@@ -25,7 +25,7 @@ class Spreadsheet
   end
 
   def find_or_create_cell(ref, content = nil)
-    ref = self.class.normalize_cell_ref(ref)
+    ref = Spreadsheet.normalize_cell_ref(ref)
 
     (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
       cell.content = content if content
@@ -37,7 +37,7 @@ class Spreadsheet
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
 
-    ref = self.class.normalize_cell_ref(ref)
+    ref = Spreadsheet.normalize_cell_ref(ref)
 
     Cell.new(self, ref, content).tap do |cell|
       update_cell_ref ref, cell
@@ -51,21 +51,25 @@ class Spreadsheet
     update_cell_ref new_ref, cell
   end
 
+  def add_column(column)
+    columns_to_the_right = cells[:by_column].find_all do |(column_ref, _)|
+      Spreadsheet.column_ref_index(column_ref) >= Spreadsheet.column_ref_index(column)
+    end
+
+    columns_to_the_right.map { |column_ref, column_cells|
+      { Spreadsheet.column_ref_index(column_ref) => column_cells }
+    }.sort { |a, b|
+      b.keys[0] <=> a.keys[0]     # Descending order.
+    }.each do |_, column_cells|
+      column_cells.each &:move_right!
+    end
+  end
+
   def add_row(row)
     bottom_rows = cells[:by_row].find_all { |row_ref| row_ref >= row }
 
     bottom_rows.sort.each do |(_, row_cells)|
       row_cells.each &:move_down!
-    end
-  end
-
-  def add_column(column)
-    columns_to_the_right = cells[:by_column].find_all do |column_ref|
-      self.class.column_ref_index(column_ref) >= self.class.column_ref_index(column)
-    end
-
-    columns_to_the_right.map { |k, v| { self.class.column_ref_index(k) => v } }.sort.each do |(_, column_cells)|
-      column_cells.each &:move_right!
     end
   end
 
@@ -93,7 +97,7 @@ class Spreadsheet
   end
 
   def pp
-    sorted_columns = cells[:by_column].map { |k, v| { self.class.column_ref_index(k) => v } }.sort { |a, b| a.keys[0] <=> b.keys[0] }
+    sorted_columns = cells[:by_column].map { |k, v| { Spreadsheet.column_ref_index(k) => v } }.sort { |a, b| a.keys[0] <=> b.keys[0] }
     sorted_rows    = cells[:by_row].sort
 
     max_col, _ = (max = sorted_columns.max { |a, b| a.keys[0] <=> b.keys[0] }) && max.keys[0]
@@ -159,6 +163,10 @@ class Spreadsheet
 
   def self.column_ref_index(column_ref)
     Cell::COL_RANGE.index column_ref
+  end
+
+  def self.column_ref_name(column_index)
+    Cell::COL_RANGE[column_index]
   end
 
   private
@@ -229,7 +237,7 @@ class Spreadsheet
       if has_formula?
         # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
         new_content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-          new_content.gsub! range, self.class.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+          new_content.gsub! range, Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
 
         @content = new_content if @content != new_content
@@ -310,7 +318,7 @@ class Spreadsheet
     end
 
     def move_right!(column_count = 1)
-      ref_col, ref_row = self.class.get_column_and_row(ref)
+      ref_col, ref_row = Cell.get_column_and_row(ref)
 
       dest_col = COL_RANGE[COL_RANGE.index(ref_col) + column_count]
 
@@ -318,7 +326,7 @@ class Spreadsheet
     end
 
     def move_left!(column_count = 1)
-      ref_col, ref_row = self.class.get_column_and_row(ref)
+      ref_col, ref_row = Cell.get_column_and_row(ref)
 
       raise IllegalMoveError if COL_RANGE.index(ref_col) <= column_count
 
@@ -328,13 +336,13 @@ class Spreadsheet
     end
 
     def move_down!(row_count = 1)
-      ref_col, ref_row = self.class.get_column_and_row(ref)
+      ref_col, ref_row = Cell.get_column_and_row(ref)
 
       move_to! "#{ref_col}#{ref_row + row_count}".to_sym
     end
 
     def move_up!(row_count = 1)
-      ref_col, ref_row = self.class.get_column_and_row(ref)
+      ref_col, ref_row = Cell.get_column_and_row(ref)
 
       raise IllegalMoveError if ref_row <= row_count
 
@@ -346,9 +354,9 @@ class Spreadsheet
     end
 
     def new_ref(source_ref, dest_ref)
-      ref_col, ref_row       = self.class.get_column_and_row(ref)
-      source_col, source_row = self.class.get_column_and_row(source_ref)
-      dest_col, dest_row     = self.class.get_column_and_row(dest_ref)
+      ref_col, ref_row       = Cell.get_column_and_row(ref)
+      source_col, source_row = Cell.get_column_and_row(source_ref)
+      dest_col, dest_row     = Cell.get_column_and_row(dest_ref)
 
       col_diff = COL_RANGE.index(dest_col) - COL_RANGE.index(source_col)
       row_diff = dest_row - source_row

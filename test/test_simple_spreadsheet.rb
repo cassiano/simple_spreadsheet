@@ -37,6 +37,42 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal a1, @spreadsheet.find_or_create_cell('a1')
     end
 
+    test '#add_column' do
+      a1 = @spreadsheet.set :A1, 1
+      b1 = @spreadsheet.set :B1, 2
+      a2 = @spreadsheet.set :A2, 3
+      b2 = @spreadsheet.set :B2, 4
+
+      @spreadsheet.add_column :A
+
+      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
+      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
+      assert_equal 1,                                 @spreadsheet.find_or_create_cell(:B1)
+      assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
+      assert_equal 3,                                 @spreadsheet.find_or_create_cell(:C1)
+      assert_equal 4,                                 @spreadsheet.find_or_create_cell(:C2)
+      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
+      assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
+    end
+
+    # test '#add_row' do
+    #   a1 = @spreadsheet.set :A1, 1
+    #   b1 = @spreadsheet.set :B1, 2
+    #   a2 = @spreadsheet.set :A2, 3
+    #   b2 = @spreadsheet.set :B2, 4
+    #
+    #   @spreadsheet.add_row 1
+    #
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B1)
+    #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:A2)
+    #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
+    #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:A3)
+    #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:B3)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A4)
+    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B4)
+    # end
+
     context 'Cell' do
       test 'can hold scalar values, like numbers and strings' do
         a1 = @spreadsheet.set :A1, 1
@@ -188,7 +224,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 1 + 8 + 4, a4.eval
       end
 
-      test '.move_to!' do
+      test '#move_to!' do
         old_a1 = @spreadsheet.set :A1, 1
         a2     = @spreadsheet.set :A2, 2
         a3     = @spreadsheet.set :A3, '= A1 + A2'
@@ -232,7 +268,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal a4_last_evaluated_at, a4.last_evaluated_at
       end
 
-      test '.copy_to' do
+      test '#copy_to' do
         a1 = @spreadsheet.set :A1, 1
         a2 = @spreadsheet.set :A2, 2
         a3 = @spreadsheet.set :A3, '= A1 + A2'
@@ -253,7 +289,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 10 + 20, b3.eval
       end
 
-      test '.move_right!' do
+      test '#move_right!' do
         a1 = @spreadsheet.set :A1, 1
 
         a1.move_right!
@@ -266,7 +302,20 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
       end
 
-      test '.move_left!' do
+      test '#move_right! should move more that 1 column (default value)' do
+        a1 = @spreadsheet.set :A1, 1
+
+        a1.move_right! 4
+
+        new_a1 = @spreadsheet.find_or_create_cell :A1
+        e1     = @spreadsheet.find_or_create_cell :E1
+
+        assert_equal a1, e1
+        assert_equal 1, e1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+      end
+
+      test '#move_left!' do
         b1 = @spreadsheet.set :B1, 1
 
         b1.move_left!
@@ -279,7 +328,20 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_b1.eval
       end
 
-      test '.move_left! should raise an error when move is not possible' do
+      test '#move_left! should move more that 1 column (default value)' do
+        e1 = @spreadsheet.set :E1, 1
+
+        e1.move_left! 4
+
+        new_e1 = @spreadsheet.find_or_create_cell :E1
+        a1     = @spreadsheet.find_or_create_cell :A1
+
+        assert_equal e1, a1
+        assert_equal 1, a1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_e1.eval
+      end
+
+      test '#move_left! should raise an error when in leftmost cell' do
         a1 = @spreadsheet.set :A1
 
         assert_raises Spreadsheet::Cell::IllegalMoveError do
@@ -287,7 +349,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         end
       end
 
-      test '.move_down!' do
+      test '#move_down!' do
         a1 = @spreadsheet.set :A1, 1
 
         a1.move_down!
@@ -300,7 +362,20 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
       end
 
-      test '.move_up!' do
+      test '#move_down! should move more that 1 row (default value)' do
+        a1 = @spreadsheet.set :A1, 1
+
+        a1.move_down! 4
+
+        new_a1 = @spreadsheet.find_or_create_cell :A1
+        a5     = @spreadsheet.find_or_create_cell :A5
+
+        assert_equal a1, a5
+        assert_equal 1, a5.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+      end
+
+      test '#move_up!' do
         a2 = @spreadsheet.set :A2, 1
 
         a2.move_up!
@@ -313,7 +388,20 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a2.eval
       end
 
-      test '.move_up! should raise an error when move is not possible' do
+      test '#move_up! should move more that 1 row (default value)' do
+        a5 = @spreadsheet.set :A5, 1
+
+        a5.move_up! 4
+
+        new_a5 = @spreadsheet.find_or_create_cell :A5
+        a1     = @spreadsheet.find_or_create_cell :A1
+
+        assert_equal a5, a1
+        assert_equal 1, a1.eval
+        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a5.eval
+      end
+
+      test '#move_up! should raise an error when in topmost cell' do
         a1 = @spreadsheet.set :A1
 
         assert_raises Spreadsheet::Cell::IllegalMoveError do
