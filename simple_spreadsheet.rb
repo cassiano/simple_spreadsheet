@@ -121,7 +121,7 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][Cell::COL_RANGE[col]])
-            print ((cell.has_formula? ? "(`#{cell.raw_content}`) " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
+            print ((cell.has_formula? ? "[`#{cell.raw_content}`] " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
           end
