@@ -84,15 +84,23 @@ class Spreadsheet
           cell.references.empty?
         end
 
-      consistent && cell.observers.all? do |observer|
+      next false unless consistent
+
+      consistent = cell.observers.all? do |observer|
         observer.references.include? cell
       end
 
+      next false unless consistent
+
       col, row = Cell::get_column_and_row(cell.ref)
 
-      consistent &&
+      consistent =
         cells[:by_column][col]  && cells[:by_column][col][row]  == cell &&
         cells[:by_row][row]     && cells[:by_row][row][col]     == cell
+
+      next false unless consistent
+
+      true
     end
   end
 
@@ -137,20 +145,87 @@ class Spreadsheet
   end
 
   def repl
-    loop do
-      print "Enter ref (type `q` or `quit` to exit): "
-      ref = gets.chomp
+    read_cell_ref = -> (message = "Enter cell reference: ") do
+      ref = nil
 
-      break if ['quit', 'q'].include?(ref.downcase)
-      next if ref !~ Cell::CELL_REF_REG_EXP
+      loop do
+        print message
+        ref = gets.chomp
 
-      print "Enter content (for formulas start with a '=' and user only uppercase cell references): "
+        break if ref =~ Cell::CELL_REF_REG_EXP
+      end
+
+      ref
+    end
+
+    read_value = -> (message = "Enter content (for formulas start with a '='): ") do
+      print message
       content = gets.chomp
+    end
+
+    loop do
+      ref = nil
 
       begin
-        set ref, content
+        print "Enter action [S - Set cell; M - Move cell; C - Copy cell; AR - Add row; AC - Add column; Q - Quit]: "
+
+        action = gets.chomp
+
+        case action.upcase.to_sym
+          when :S then
+            ref     = read_cell_ref.call
+            content = read_value.call
+
+            set ref, content
+          when :M then
+            print "Enter sub action [U - Up; D - Down; L - Left; R - Right; S - Specific position]: "
+            subaction = gets.chomp
+
+            ref = read_cell_ref.call('Select source reference: ')
+
+            cell = find_or_create_cell(ref)
+
+            case subaction.upcase.to_sym
+              when :U then
+                cell.move_up!
+              when :D then
+                cell.move_down!
+              when :L then
+                cell.move_left!
+              when :R then
+                cell.move_right!
+              when :S then
+                dest_ref = read_cell_ref.call('Select destination reference: ')
+
+                cell.move_to! dest_ref
+            end
+
+          when :C then
+            ref = read_cell_ref.call('Select source reference: ')
+
+            cell = find_or_create_cell(ref)
+
+            dest_ref = read_cell_ref.call('Select destination reference: ')
+
+            cell.copy_to dest_ref
+
+          when :AR then
+            row = read_value.call('Enter row number (starting with 1): ')
+
+            add_row row
+          when :AC then
+            column = read_value.call('Enter column name (starting with "A"): ')
+
+            add_column Spreadsheet.column_ref_index(column)
+
+          when :Q then
+            break;
+
+          else
+            next;
+        end
       rescue StandardError => e
-        puts "Error: `#{e}`. Please reenter data."
+        puts "Error: `#{e}`."
         next
       end
 
@@ -301,7 +376,7 @@ class Spreadsheet
     end
 
     def copy_to(dest_ref)
-      dest_content = content.clone
+      dest_content = raw_content.clone
 
       references.each do |reference|
         dest_content.gsub! reference.ref.to_s, reference.new_ref(ref, dest_ref).to_s
