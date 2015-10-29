@@ -145,22 +145,29 @@ class Spreadsheet
   end
 
   def repl
-    read_value = -> (message, constraint = nil) do
+    read_value = -> (message, constraint = nil, default_value = nil) do
+      default_value = default_value.to_s if default_value
+
       value = nil
 
       loop do
         print message
         value = gets.chomp
+        value = nil if value == ''
+
+        value ||= default_value
 
         valid_value =
           if !constraint
             true
-          elsif value =~ /^\d+$/
-            constraint.include? value.to_i
-          elsif Regexp === constraint
-            constraint =~ value
-          else
-            constraint.include?(value.upcase)
+          elsif value
+            if value =~ /^\d+$/
+              constraint.include? value.to_i
+            elsif Regexp === constraint
+              constraint =~ value
+            else
+              constraint.include? value.upcase
+            end
           end
 
         break if valid_value
@@ -173,17 +180,23 @@ class Spreadsheet
       ref = read_value.call(message, /^#{Cell::CELL_REF1}$/i)
     end
 
+    read_number = -> (message, default_value) do
+      number = read_value.call(message, 1..2**32, default_value)
+      number.to_i
+    end
+
     loop do
       begin
         ref = nil
 
         action = read_value.call(
           "Enter action [S - Set cell (default); M - Move cell; C - Copy cell; AR - Add row; AC - Add column; Q - Quit]: ",
-          ['', 'S', 'M', 'C', 'AR', 'AC', 'Q']
+          ['S', 'M', 'C', 'AR', 'AC', 'Q'],
+          'S'
         )
 
         case action.upcase
-          when '', 'S' then
+          when 'S' then
             ref     = read_cell_ref.call
             content = read_value.call("Enter content (for formulas start with a '='): ")
 
@@ -192,7 +205,8 @@ class Spreadsheet
           when 'M' then
             subaction = read_value.call(
               'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
-              ['', 'S', 'U', 'D', 'L', 'R']
+              ['S', 'U', 'D', 'L', 'R'],
+              'S'
             )
 
             ref = read_cell_ref.call('Select source reference: ')
@@ -200,18 +214,18 @@ class Spreadsheet
             cell = find_or_create_cell(ref)
 
             case subaction.upcase
-              when '', 'S' then
+              when 'S' then
                 dest_ref = read_cell_ref.call('Select destination reference: ')
 
                 cell.move_to! dest_ref
               when 'U' then
-                cell.move_up!
+                cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
               when 'D' then
-                cell.move_down!
+                cell.move_down! read_number.call('Enter # of rows (default: 1): ', 1)
               when 'L' then
-                cell.move_left!
+                cell.move_left! read_number.call('Enter # of columns (default: 1): ', 1)
               when 'R' then
-                cell.move_right!
+                cell.move_right! read_number.call('Enter # of columns (default: 1): ', 1)
             end
 
           when 'C' then
@@ -333,7 +347,7 @@ class Spreadsheet
       if has_formula?
         # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
         @content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-          @content.gsub! "\b#{range}\b", Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+          @content.gsub! /\b#{range}\b/i, Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
 
         # Now find all references.
@@ -370,7 +384,7 @@ class Spreadsheet
           evaluated_content = content[1..-1]
 
           references.each do |cell|
-            evaluated_content.gsub! Regexp.new("\b#{cell.ref}\b", Regexp::IGNORECASE), cell.eval.to_s
+            evaluated_content.gsub! /\b#{cell.ref}\b/i, cell.eval.to_s
           end
 
           Formula.instance_eval { eval evaluated_content }
@@ -394,7 +408,7 @@ class Spreadsheet
       dest_content = raw_content.clone
 
       references.each do |reference|
-        dest_content.gsub! Regexp.new("\b#{reference.ref}\b", Regexp::IGNORECASE), reference.new_ref(ref, dest_ref).to_s
+        dest_content.gsub! /\b#{reference.ref}\b/i, reference.new_ref(ref, dest_ref).to_s
       end
 
       spreadsheet.set dest_ref, dest_content
@@ -444,7 +458,7 @@ class Spreadsheet
     end
 
     def update_reference(old_ref, new_ref)
-      self.content = self.content.gsub(Regexp.new("\b#{old_ref}\b", Regexp::IGNORECASE), new_ref.to_s)
+      self.content = self.content.gsub(/\b#{old_ref}\b/i, new_ref.to_s)
     end
 
     def new_ref(source_ref, dest_ref)
