@@ -145,62 +145,76 @@ class Spreadsheet
   end
 
   def repl
-    read_cell_ref = -> (message = "Enter cell reference: ") do
-      ref = nil
+    read_value = -> (message, constraint = nil) do
+      value = nil
 
       loop do
         print message
-        ref = gets.chomp
+        value = gets.chomp
 
-        break if ref =~ Cell::CELL_REF_REG_EXP
+        valid_value =
+          if !constraint
+            true
+          elsif value =~ /^\d+$/
+            constraint.include? value.to_i
+          elsif Regexp === constraint
+            constraint =~ value
+          else
+            constraint.include?(value.upcase)
+          end
+
+        break if valid_value
       end
 
-      ref
+      value
     end
 
-    read_value = -> (message = "Enter content (for formulas start with a '='): ") do
-      print message
-      content = gets.chomp
+    read_cell_ref = -> (message = 'Enter cell reference: ') do
+      ref = read_value.call(message, /^#{Cell::CELL_REF1}$/i)
     end
 
     loop do
-      ref = nil
-
       begin
-        print "Enter action [S - Set cell; M - Move cell; C - Copy cell; AR - Add row; AC - Add column; Q - Quit]: "
+        ref = nil
 
-        action = gets.chomp
+        action = read_value.call(
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell; AR - Add row; AC - Add column; Q - Quit]: ",
+          ['', 'S', 'M', 'C', 'AR', 'AC', 'Q']
+        )
 
-        case action.upcase.to_sym
-          when :S then
+        case action.upcase
+          when '', 'S' then
             ref     = read_cell_ref.call
-            content = read_value.call
+            content = read_value.call("Enter content (for formulas start with a '='): ")
 
             set ref, content
-          when :M then
-            print "Enter sub action [U - Up; D - Down; L - Left; R - Right; S - Specific position]: "
-            subaction = gets.chomp
+
+          when 'M' then
+            subaction = read_value.call(
+              'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
+              ['', 'S', 'U', 'D', 'L', 'R']
+            )
 
             ref = read_cell_ref.call('Select source reference: ')
 
             cell = find_or_create_cell(ref)
 
-            case subaction.upcase.to_sym
-              when :U then
-                cell.move_up!
-              when :D then
-                cell.move_down!
-              when :L then
-                cell.move_left!
-              when :R then
-                cell.move_right!
-              when :S then
+            case subaction.upcase
+              when '', 'S' then
                 dest_ref = read_cell_ref.call('Select destination reference: ')
 
                 cell.move_to! dest_ref
+              when 'U' then
+                cell.move_up!
+              when 'D' then
+                cell.move_down!
+              when 'L' then
+                cell.move_left!
+              when 'R' then
+                cell.move_right!
             end
 
-          when :C then
+          when 'C' then
             ref = read_cell_ref.call('Select source reference: ')
 
             cell = find_or_create_cell(ref)
@@ -209,16 +223,17 @@ class Spreadsheet
 
             cell.copy_to dest_ref
 
-          when :AR then
-            row = read_value.call('Enter row number (starting with 1): ')
+          when 'AR' then
+            row = read_value.call('Enter row number (starting with 1): ', 1..2**32)
 
             add_row row
-          when :AC then
-            column = read_value.call('Enter column name (starting with "A"): ')
+
+          when 'AC' then
+            column = read_value.call('Enter column name (starting with "A"): ', 'A'..'ZZZ')
 
             add_column Spreadsheet.column_ref_index(column)
 
-          when :Q then
+          when 'Q' then
             break;
 
           else
@@ -379,7 +394,7 @@ class Spreadsheet
       dest_content = raw_content.clone
 
       references.each do |reference|
-        dest_content.gsub! reference.ref.to_s, reference.new_ref(ref, dest_ref).to_s
+        dest_content.gsub! Regexp.new(reference.ref.to_s, Regexp::IGNORECASE), reference.new_ref(ref, dest_ref).to_s
       end
 
       spreadsheet.set dest_ref, dest_content
@@ -429,7 +444,7 @@ class Spreadsheet
     end
 
     def update_reference(old_ref, new_ref)
-      self.content = self.content.gsub(old_ref.to_s, new_ref.to_s)
+      self.content = self.content.gsub(Regexp.new(old_ref.to_s, Regexp::IGNORECASE), new_ref.to_s)
     end
 
     def new_ref(source_ref, dest_ref)
