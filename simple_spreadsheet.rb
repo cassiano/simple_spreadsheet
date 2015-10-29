@@ -333,7 +333,7 @@ class Spreadsheet
       if has_formula?
         # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
         @content[1..-1].scan(CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-          @content.gsub! range, Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+          @content.gsub! "\b#{range}\b", Cell.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
         end
 
         # Now find all references.
@@ -370,7 +370,7 @@ class Spreadsheet
           evaluated_content = content[1..-1]
 
           references.each do |cell|
-            evaluated_content.gsub! Regexp.new(cell.ref.to_s, Regexp::IGNORECASE), cell.eval.to_s
+            evaluated_content.gsub! Regexp.new("\b#{cell.ref}\b", Regexp::IGNORECASE), cell.eval.to_s
           end
 
           Formula.instance_eval { eval evaluated_content }
@@ -394,7 +394,7 @@ class Spreadsheet
       dest_content = raw_content.clone
 
       references.each do |reference|
-        dest_content.gsub! Regexp.new(reference.ref.to_s, Regexp::IGNORECASE), reference.new_ref(ref, dest_ref).to_s
+        dest_content.gsub! Regexp.new("\b#{reference.ref}\b", Regexp::IGNORECASE), reference.new_ref(ref, dest_ref).to_s
       end
 
       spreadsheet.set dest_ref, dest_content
@@ -444,7 +444,7 @@ class Spreadsheet
     end
 
     def update_reference(old_ref, new_ref)
-      self.content = self.content.gsub(Regexp.new(old_ref.to_s, Regexp::IGNORECASE), new_ref.to_s)
+      self.content = self.content.gsub(Regexp.new("\b#{old_ref}\b", Regexp::IGNORECASE), new_ref.to_s)
     end
 
     def new_ref(source_ref, dest_ref)
