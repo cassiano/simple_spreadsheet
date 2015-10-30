@@ -25,8 +25,6 @@ class Spreadsheet
   end
 
   def find_or_create_cell(ref, content = nil)
-    ref = Spreadsheet.normalize_cell_ref(ref)
-
     (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
       cell.content = content if content
     end
@@ -36,8 +34,6 @@ class Spreadsheet
 
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
-
-    ref = Spreadsheet.normalize_cell_ref(ref)
 
     Cell.new(self, ref, content).tap do |cell|
       update_cell_ref ref, cell
@@ -52,21 +48,22 @@ class Spreadsheet
   end
 
   def add_column(column)
-    columns_to_the_right = cells[:by_column].find_all do |(column_ref, _)|
+    cells[:by_column].find_all { |(column_ref, _)|
       Spreadsheet.column_ref_index(column_ref) >= Spreadsheet.column_ref_index(column)
-    end
-
-    columns_to_the_right.map { |column_ref, column_cells|
+    }.map { |(column_ref, column_cells)|
       { Spreadsheet.column_ref_index(column_ref) => column_cells }
     }.sort { |a, b|
       b.keys[0] <=> a.keys[0]     # Descending order.
-    }.each do |_, column_cells|
+    }.each do |item|
+      column_cells = item.values[0]
       column_cells.each &:move_right!
     end
   end
 
   def add_row(row)
-    bottom_rows = cells[:by_row].find_all { |row_ref| row_ref >= row }
+    bottom_rows = cells[:by_row].find_all do |(row_ref, _)|
+      row_ref >= row
+    end
 
     bottom_rows.sort.each do |(_, row_cells)|
       row_cells.each &:move_down!
@@ -180,7 +177,7 @@ class Spreadsheet
       ref = read_value.call(message, /^#{Cell::CELL_REF1}$/i)
     end
 
-    read_number = -> (message, default_value) do
+    read_number = -> (message, default_value = nil) do
       number = read_value.call(message, 1..2**32, default_value)
       number.to_i
     end
@@ -215,9 +212,7 @@ class Spreadsheet
 
             case subaction.upcase
               when 'S' then
-                dest_ref = read_cell_ref.call('Select destination reference: ')
-
-                cell.move_to! dest_ref
+                cell.move_to! read_cell_ref.call('Select destination reference: ')
               when 'U' then
                 cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
               when 'D' then
@@ -229,21 +224,17 @@ class Spreadsheet
             end
 
           when 'C' then
-            ref = read_cell_ref.call('Select source reference: ')
-
-            cell = find_or_create_cell(ref)
-
+            ref      = read_cell_ref.call('Select source reference: ')
+            cell     = find_or_create_cell(ref)
             dest_ref = read_cell_ref.call('Select destination reference: ')
 
             cell.copy_to dest_ref
 
           when 'AR' then
-            row = read_value.call('Enter row number (starting with 1): ', 1..2**32)
-
-            add_row row
+            add_row read_number.call('Enter row number (>= 1): ')
 
           when 'AC' then
-            column = read_value.call('Enter column name (starting with "A"): ', 'A'..'ZZZ')
+            column = read_value.call('Enter column name (>= "A"): ', 'A'..'ZZZ')
 
             add_column Spreadsheet.column_ref_index(column)
 
@@ -255,6 +246,9 @@ class Spreadsheet
         end
       rescue StandardError => e
         puts "Error: `#{e}`."
+        puts 'Stack trace:'
+        puts e.backtrace
+
         next
       end
 
@@ -277,10 +271,14 @@ class Spreadsheet
   private
 
   def find_cell_ref(ref)
+    ref = Spreadsheet.normalize_cell_ref(ref)
+
     cells[:all][ref]
   end
 
   def update_cell_ref(ref, cell)
+    ref = Spreadsheet.normalize_cell_ref(ref)
+
     col, row = Cell::get_column_and_row(ref)
 
     cells[:by_column][col]  ||= {}
@@ -330,6 +328,8 @@ class Spreadsheet
     end
 
     def content=(new_content)
+      puts "Setting new content `#{new_content}` to cell #{ref}" if DEBUG
+
       new_content = new_content.strip if String === new_content
 
       old_references = Set.new
