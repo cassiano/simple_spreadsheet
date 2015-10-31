@@ -45,14 +45,14 @@ class TestSpreadsheet < Test::Unit::TestCase
     #
     #   @spreadsheet.add_column :A
     #
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
     #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:B1)
     #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
     #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:C1)
     #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:C2)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
     # end
 
     # test '#add_row' do
@@ -63,14 +63,14 @@ class TestSpreadsheet < Test::Unit::TestCase
     #
     #   @spreadsheet.add_row 1
     #
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B1)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B1)
     #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:A2)
     #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
     #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:A3)
     #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:B3)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A4)
-    #   assert_equal Spreadsheet::Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B4)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A4)
+    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B4)
     # end
 
     context 'Cell' do
@@ -104,7 +104,7 @@ class TestSpreadsheet < Test::Unit::TestCase
           a4 = @spreadsheet.set :A4, '= A5'
         end
 
-        assert_raises Spreadsheet::Cell::CircularReferenceError do
+        assert_raises Cell::CircularReferenceError do
           a5 = @spreadsheet.set :A5, '= A1'
         end
       end
@@ -112,7 +112,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test 'cannot have auto references in formulas' do
         @skip_teardown = true
 
-        assert_raises Spreadsheet::Cell::CircularReferenceError do
+        assert_raises Cell::CircularReferenceError do
           a1 = @spreadsheet.set :A1, '= A1'
         end
       end
@@ -120,7 +120,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test 'have default values' do
         a1 = @spreadsheet.set :A1
 
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, a1.eval
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test 'have empty references and observers when created' do
@@ -176,15 +176,15 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '.splat_range works for cells in same row' do
-        assert_equal [[:A1, :B1, :C1]], Spreadsheet::Cell.splat_range(:A1, :C1)
+        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(:A1, :C1)
       end
 
       test '.splat_range works for cells in same column' do
-        assert_equal [[:A1], [:A2], [:A3]], Spreadsheet::Cell.splat_range(:A1, :A3)
+        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(:A1, :A3)
       end
 
       test '.splat_range works for cells in distinct rows and columns' do
-        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], Spreadsheet::Cell.splat_range(:A1, :C3)
+        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(:A1, :C3)
       end
 
       test 'can hold formulas with functions which include cell ranges' do
@@ -256,7 +256,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         # Assert (new) A1 cell is empty and has no (more) observers.
         new_a1           = @spreadsheet.find_or_create_cell :A1
         new_a1_observers = Set.new
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
         assert_equal new_a1_observers, new_a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
@@ -299,10 +299,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a1, b1
         assert_equal 1, b1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
       end
 
-      test '#move_right! should move more that 1 column (default value)' do
+      test '#move_right! should allow to move more that 1 column (default value)' do
         a1 = @spreadsheet.set :A1, 1
 
         a1.move_right! 4
@@ -312,7 +312,7 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a1, e1
         assert_equal 1, e1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
       end
 
       test '#move_left!' do
@@ -325,10 +325,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a1, b1
         assert_equal 1, b1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_b1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_b1.eval
       end
 
-      test '#move_left! should move more that 1 column (default value)' do
+      test '#move_left! should allow to move more that 1 column (default value)' do
         e1 = @spreadsheet.set :E1, 1
 
         e1.move_left! 4
@@ -338,13 +338,13 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal e1, a1
         assert_equal 1, a1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_e1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_e1.eval
       end
 
       test '#move_left! should raise an error when in leftmost cell' do
         a1 = @spreadsheet.set :A1
 
-        assert_raises Spreadsheet::Cell::IllegalMoveError do
+        assert_raises Cell::IllegalMoveError do
           a1.move_left!
         end
       end
@@ -359,10 +359,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a1, a2
         assert_equal 1, a2.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
       end
 
-      test '#move_down! should move more that 1 row (default value)' do
+      test '#move_down! should allow to move more that 1 row (default value)' do
         a1 = @spreadsheet.set :A1, 1
 
         a1.move_down! 4
@@ -372,7 +372,7 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a1, a5
         assert_equal 1, a5.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
       end
 
       test '#move_up!' do
@@ -385,10 +385,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a2, a1
         assert_equal 1, a1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a2.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a2.eval
       end
 
-      test '#move_up! should move more that 1 row (default value)' do
+      test '#move_up! should allow to move more that 1 row (default value)' do
         a5 = @spreadsheet.set :A5, 1
 
         a5.move_up! 4
@@ -398,13 +398,13 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal a5, a1
         assert_equal 1, a1.eval
-        assert_equal Spreadsheet::Cell::DEFAULT_VALUE, new_a5.eval
+        assert_equal Cell::DEFAULT_VALUE, new_a5.eval
       end
 
       test '#move_up! should raise an error when in topmost cell' do
         a1 = @spreadsheet.set :A1
 
-        assert_raises Spreadsheet::Cell::IllegalMoveError do
+        assert_raises Cell::IllegalMoveError do
           a1.move_up!
         end
       end
