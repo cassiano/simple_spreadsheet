@@ -28,7 +28,9 @@ class CellRef
   delegate :col_ref_index, to: :class
   delegate :col_ref_name,  to: :class
 
-  def initialize(ref)
+  def initialize(*ref)
+    ref = [*ref].join
+
     @ref = normalize_cell_ref(ref)
   end
 
@@ -44,32 +46,30 @@ class CellRef
     get_col_and_row[1]
   end
 
-  def right_neighbor(count = 1)
-    raise IllegalCellReference unless col_index + count > 0
+  def get_col_and_row
+    ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
+  end
 
-    CellRef.new "#{col_ref_name(col_index + count)}#{row}"
+  def neighbor(col_count: 0, row_count: 0)
+    raise IllegalCellReference unless col_index + col_count > 0 && row + row_count > 0
+
+    CellRef.new "#{col_ref_name(col_index + col_count)}#{row + row_count}"
+  end
+
+  def right_neighbor(count = 1)
+    neighbor col_count: count
   end
 
   def left_neighbor(count = 1)
-    raise IllegalCellReference unless col_index - count > 0
-
-    CellRef.new "#{col_ref_name(col_index - count)}#{row}"
+    neighbor col_count: -count
   end
 
   def top_neighbor(count = 1)
-    raise IllegalCellReference unless row - count > 0
-
-    CellRef.new "#{col}#{row - count}"
+    neighbor row_count: -count
   end
 
   def bottom_neighbor(count = 1)
-    raise IllegalCellReference unless row + count > 0
-
-    CellRef.new "#{col}#{row + count}"
-  end
-
-  def get_col_and_row
-    ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
+    neighbor row_count: count
   end
 
   def to_s
@@ -261,13 +261,10 @@ class Cell
     self.content = self.content.gsub(/\b#{old_ref}\b/i, new_ref.to_s)
   end
 
-  def new_ref(source_ref, dest_ref)
-    ref_col, ref_row       = ref.get_col_and_row
-    source_col, source_row = source_ref.get_col_and_row
-    dest_col, dest_row     = dest_ref.get_col_and_row
-
-    col_diff = CellRef.col_ref_index(dest_col) - CellRef.col_ref_index(source_col)
-    row_diff = dest_row - source_row
+  # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
+  def new_ref(observer_source_ref, observer_dest_ref)
+    col_diff = observer_dest_ref.col_index  - observer_source_ref.col_index
+    row_diff = observer_dest_ref.row        - observer_source_ref.row
 
     ref.right_neighbor(col_diff).bottom_neighbor(row_diff)
   end
@@ -481,11 +478,11 @@ class Spreadsheet
           if !constraint
             true
           elsif value
-            if value =~ /^\d+$/
+            if value =~ /^\d+$/ && constraint.respond_to?(:include?)
               constraint.include? value.to_i
             elsif Regexp === constraint
               constraint =~ value
-            else
+            elsif constraint.respond_to?(:include?)
               constraint.include? value.upcase
             end
           end

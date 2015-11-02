@@ -3,6 +3,124 @@ require 'contest'
 require 'turn/autorun'
 
 class TestSpreadsheet < Test::Unit::TestCase
+  context 'CellRef' do
+    test '#initialize can receive symbols, strings or even arrays, all case insensitive' do
+      [
+        CellRef.new(:A1),
+        CellRef.new(:a1),
+        CellRef.new('A1'),
+        CellRef.new('a1'),
+        CellRef.new('A', 1),
+        CellRef.new('a', 1),
+        CellRef.new(:A, 1),
+        CellRef.new(:a, 1),
+        CellRef.new(['A', 1]),
+        CellRef.new(['a', 1]),
+        CellRef.new([:A, 1]),
+        CellRef.new([:a, 1]),
+      ].each do |ref|
+        assert_equal :A1, ref.ref
+      end
+    end
+
+    test '#col' do
+      ref_a1   = CellRef.new(:A1)
+      ref_aa1  = CellRef.new(:AA1)
+      ref_aaa1 = CellRef.new(:AAA1)
+
+      assert_equal :A,    ref_a1.col
+      assert_equal :AA,   ref_aa1.col
+      assert_equal :AAA,  ref_aaa1.col
+    end
+
+    test '#col_index' do
+      ref_a1 = CellRef.new(:A1)
+
+      assert_equal 1, ref_a1.col_index
+    end
+
+    test '#row' do
+      ref_a2 = CellRef.new(:A2)
+
+      assert_equal 2, ref_a2.row
+    end
+
+    test '#get_col_and_row' do
+      ref_a2 = CellRef.new(:A2)
+
+      assert_equal [:A, 2], ref_a2.get_col_and_row
+    end
+
+    test '#==' do
+      ref_a1         = CellRef.new(:A1)
+      ref_another_a1 = CellRef.new(:A1)
+
+      assert_equal ref_another_a1, ref_a1
+    end
+
+    test '#neighbor' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal ref_d5, ref_d5.neighbor
+      assert_equal CellRef.new(:G5), ref_d5.neighbor(col_count: 3)
+      assert_equal CellRef.new(:A5), ref_d5.neighbor(col_count: -3)
+      assert_raises CellRef::IllegalCellReference do
+        ref_d5.neighbor(col_count: -4)
+      end
+
+      assert_equal CellRef.new(:D9), ref_d5.neighbor(row_count: 4)
+      assert_equal CellRef.new(:D1), ref_d5.neighbor(row_count: -4)
+      assert_raises CellRef::IllegalCellReference do
+        ref_d5.neighbor(row_count: -5)
+      end
+
+      assert_equal CellRef.new(:G1), ref_d5.neighbor(col_count: 3, row_count: -4)
+      assert_raises CellRef::IllegalCellReference do
+        ref_d5.neighbor(col_count: -4, row_count: -5)
+      end
+    end
+
+    test '#left_neighbor' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal CellRef.new(:C5), ref_d5.left_neighbor
+      assert_equal CellRef.new(:A5), ref_d5.left_neighbor(3)
+      assert_raises CellRef::IllegalCellReference do
+        ref_d5.left_neighbor(4)
+      end
+    end
+
+    test '#right_neighbor' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal CellRef.new(:E5), ref_d5.right_neighbor
+      assert_equal CellRef.new(:G5), ref_d5.right_neighbor(3)
+    end
+
+    test '#top_neighbor' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal CellRef.new(:D4), ref_d5.top_neighbor
+      assert_equal CellRef.new(:D1), ref_d5.top_neighbor(4)
+      assert_raises CellRef::IllegalCellReference do
+        ref_d5.top_neighbor(5)
+      end
+    end
+
+    test '#bottom_neighbor' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal CellRef.new(:D6), ref_d5.bottom_neighbor
+      assert_equal CellRef.new(:D9), ref_d5.bottom_neighbor(4)
+    end
+
+    test '#to_s' do
+      ref_d5 = CellRef.new(:D5)
+
+      assert_equal 'D5', ref_d5.to_s
+    end
+  end
+
   context 'SpreadSheet' do
     setup do
       @spreadsheet = Spreadsheet.new
