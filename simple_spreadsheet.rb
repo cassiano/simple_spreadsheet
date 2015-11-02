@@ -571,8 +571,6 @@ class Spreadsheet
         puts "Error: `#{e}`."
         puts 'Stack trace:'
         puts e.backtrace
-
-        next
       end
 
       pp
