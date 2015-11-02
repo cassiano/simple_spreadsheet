@@ -20,11 +20,13 @@ class CellRef
   CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
   CELL_RANGE_REG_EXP = /((#{CELL_REF1}):(#{CELL_REF1}))/i
 
+  # List of possible exceptions.
+  class IllegalCellReference < StandardError; end
+
   attr_reader :ref
 
-  delegate :normalize_cell_ref, to: :class
-  delegate :col_ref_index,      to: :class
-  delegate :col_ref_name,       to: :class
+  delegate :col_ref_index, to: :class
+  delegate :col_ref_name,  to: :class
 
   def initialize(ref)
     @ref = normalize_cell_ref(ref)
@@ -42,20 +44,28 @@ class CellRef
     get_col_and_row[1]
   end
 
-  def right_ref(col_count = 1)
-    col_ref_name col_ref_index + col_count
+  def right_neighbor(count = 1)
+    raise IllegalCellReference unless col_index + count > 0
+
+    CellRef.new "#{col_ref_name(col_index + count)}#{row}"
   end
 
-  def left_ref(col_count = 1)
-    col_ref_name col_ref_index - col_count
+  def left_neighbor(count = 1)
+    raise IllegalCellReference unless col_index - count > 0
+
+    CellRef.new "#{col_ref_name(col_index - count)}#{row}"
   end
 
-  def up_ref(row_count = 1)
-    row_ref_index - row_count
+  def top_neighbor(count = 1)
+    raise IllegalCellReference unless row - count > 0
+
+    CellRef.new "#{col}#{row - count}"
   end
 
-  def down_ref(row_count = 1)
-    row_ref_index + row_count
+  def bottom_neighbor(count = 1)
+    raise IllegalCellReference unless row + count > 0
+
+    CellRef.new "#{col}#{row + count}"
   end
 
   def get_col_and_row
@@ -63,14 +73,16 @@ class CellRef
   end
 
   def to_s
-    ref
+    ref.to_s
   end
 
   def ==(other_ref)
     ref == other_ref.ref
   end
 
-  def self.normalize_cell_ref(ref)
+  private
+
+  def normalize_cell_ref(ref)
     ref.upcase.to_sym
   end
 
@@ -83,18 +95,14 @@ class CellRef
   end
 
   def self.splat_range(upper_left_ref, lower_right_ref)
-    ul_col, ul_row = get_col_and_row(upper_left_ref)
-    lr_col, lr_row = get_col_and_row(lower_right_ref)
+    ul_col, ul_row = upper_left_ref.get_col_and_row
+    lr_col, lr_row = lower_right_ref.get_col_and_row
 
     (ul_row..lr_row).map do |row|
       (ul_col..lr_col).map do |col|
         "#{col}#{row}".to_sym
       end
     end
-  end
-
-  def self.get_col_and_row(ref)
-    ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
   end
 end
 
@@ -103,17 +111,16 @@ class Cell
 
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
-  class IllegalMoveError < StandardError; end
 
   attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
 
   def initialize(spreadsheet, ref, content = nil)
     puts "Creating cell #{ref}" if DEBUG
 
-    ref = CellRef.normalize_cell_ref(ref)
+    ref = CellRef.new(ref) unless CellRef === ref
 
     @spreadsheet = spreadsheet
-    @ref         = CellRef.new(ref)
+    @ref         = ref
     @references  = Set.new
     @observers   = Set.new
 
@@ -152,7 +159,7 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(CellRef.new(upper_left_ref), CellRef.new(lower_right_ref)).to_s.gsub(':', '')
       end
 
       # Now find all references.
@@ -210,16 +217,20 @@ class Cell
   end
 
   def copy_to(dest_ref)
+    dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+
     dest_content = raw_content.clone
 
     references.each do |reference|
-      dest_content.gsub! /\b#{reference.ref}\b/i, reference.new_ref(ref, dest_ref).to_s
+      dest_content.gsub! /\b#{reference.ref.ref}\b/i, reference.new_ref(ref, dest_ref).ref.to_s
     end
 
     spreadsheet.set dest_ref, dest_content
   end
 
   def move_to!(dest_ref)
+    dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+
     source_ref = ref
     @ref       = dest_ref
 
@@ -231,35 +242,19 @@ class Cell
   end
 
   def move_right!(col_count = 1)
-    ref_col, ref_row = CellRef.get_col_and_row(ref)
-
-    dest_col = CellRef.col_ref_name(CellRef.col_ref_index(ref_col) + col_count)
-
-    move_to! "#{dest_col}#{ref_row}".to_sym
+    move_to! ref.right_neighbor(col_count)
   end
 
   def move_left!(col_count = 1)
-    ref_col, ref_row = CellRef.get_col_and_row(ref)
-
-    raise IllegalMoveError if CellRef.col_ref_index(ref_col) <= col_count
-
-    dest_col = CellRef.col_ref_name(CellRef.col_ref_index(ref_col) - col_count)
-
-    move_to! "#{dest_col}#{ref_row}".to_sym
+    move_to! ref.left_neighbor(col_count)
   end
 
   def move_down!(row_count = 1)
-    ref_col, ref_row = CellRef.get_col_and_row(ref)
-
-    move_to! "#{ref_col}#{ref_row + row_count}".to_sym
+    move_to! ref.bottom_neighbor(row_count)
   end
 
   def move_up!(row_count = 1)
-    ref_col, ref_row = CellRef.get_col_and_row(ref)
-
-    raise IllegalMoveError if ref_row <= row_count
-
-    move_to! "#{ref_col}#{ref_row - row_count}".to_sym
+    move_to! ref.top_neighbor(row_count)
   end
 
   def update_reference(old_ref, new_ref)
@@ -267,17 +262,14 @@ class Cell
   end
 
   def new_ref(source_ref, dest_ref)
-    ref_col, ref_row       = CellRef.get_col_and_row(ref)
-    source_col, source_row = CellRef.get_col_and_row(source_ref)
-    dest_col, dest_row     = CellRef.get_col_and_row(dest_ref)
+    ref_col, ref_row       = ref.get_col_and_row
+    source_col, source_row = source_ref.get_col_and_row
+    dest_col, dest_row     = dest_ref.get_col_and_row
 
     col_diff = CellRef.col_ref_index(dest_col) - CellRef.col_ref_index(source_col)
     row_diff = dest_row - source_row
 
-    new_col = CellRef.col_ref_name(CellRef.col_ref_index(ref_col) + col_diff)
-    new_row = ref_row + row_diff
-
-    "#{new_col}#{new_row}".to_sym
+    ref.right_neighbor(col_diff).bottom_neighbor(row_diff)
   end
 
   def has_formula?
@@ -420,11 +412,11 @@ class Spreadsheet
 
       next false unless consistent
 
-      col, row = CellRef.get_col_and_row(cell.ref)
+      col, row = cell.ref.get_col_and_row
 
       consistent =
-        cells[:by_col][col]  && cells[:by_col][col][row]  == cell &&
-        cells[:by_row][row]     && cells[:by_row][row][col]     == cell
+        cells[:by_col][col] && cells[:by_col][col][row] == cell &&
+        cells[:by_row][row] && cells[:by_row][row][col] == cell
 
       next false unless consistent
 
@@ -434,7 +426,7 @@ class Spreadsheet
 
   def pp
     sorted_cols = cells[:by_col].map { |k, v| { CellRef.col_ref_index(k) => v } }.sort { |a, b| a.keys[0] <=> b.keys[0] }
-    sorted_rows    = cells[:by_row].sort
+    sorted_rows = cells[:by_row].sort
 
     max_col, _ = (max = sorted_cols.max { |a, b| a.keys[0] <=> b.keys[0] }) && max.keys[0]
     max_row, _ = sorted_rows.max
@@ -590,20 +582,20 @@ class Spreadsheet
   private
 
   def find_cell_ref(ref)
-    ref = CellRef.normalize_cell_ref(ref)
+    ref = CellRef.new(ref) unless CellRef === ref
 
-    cells[:all][ref]
+    cells[:all][ref.ref]
   end
 
   def update_cell_ref(ref, cell)
-    ref = CellRef.normalize_cell_ref(ref)
+    ref = CellRef.new(ref) unless CellRef === ref
 
-    col, row = CellRef.get_col_and_row(ref)
+    col, row = ref.get_col_and_row
 
-    cells[:by_col][col]  ||= {}
-    cells[:by_row][row]     ||= {}
+    cells[:by_col][col] ||= {}
+    cells[:by_row][row] ||= {}
 
-    cells[:all][ref] = cells[:by_col][col][row] = cells[:by_row][row][col] = cell
+    cells[:all][ref.ref] = cells[:by_col][col][row] = cells[:by_row][row][col] = cell
   end
 end
 

@@ -25,7 +25,7 @@ class TestSpreadsheet < Test::Unit::TestCase
     test '#find_or_create_cell creates new cells as needed' do
       a1 = @spreadsheet.find_or_create_cell(:A1)
 
-      assert_equal :A1, a1.ref
+      assert_equal :A1, a1.ref.ref
     end
 
     test 'cells can be found using symbol or string case insensitive references' do
@@ -176,15 +176,15 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '.splat_range works for cells in same row' do
-        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(:A1, :C1)
+        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C1))
       end
 
       test '.splat_range works for cells in same column' do
-        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(:A1, :A3)
+        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:A3))
       end
 
       test '.splat_range works for cells in distinct rows and columns' do
-        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(:A1, :C3)
+        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C3))
       end
 
       test 'can hold formulas with functions which include cell ranges' do
@@ -344,7 +344,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test '#move_left! should raise an error when in leftmost cell' do
         a1 = @spreadsheet.set :A1
 
-        assert_raises Cell::IllegalMoveError do
+        assert_raises CellRef::IllegalCellReference do
           a1.move_left!
         end
       end
@@ -404,7 +404,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test '#move_up! should raise an error when in topmost cell' do
         a1 = @spreadsheet.set :A1
 
-        assert_raises Cell::IllegalMoveError do
+        assert_raises CellRef::IllegalCellReference do
           a1.move_up!
         end
       end
