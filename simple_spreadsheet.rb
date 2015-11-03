@@ -227,7 +227,7 @@ class Cell
   end
 
   def copy_to_range(dest_range)
-    CellRef.splat_range(dest_range).flatten.each do |ref|
+    CellRef.splat_range(*dest_range.split(':')).flatten.each do |ref|
       copy_to ref
     end
   end
@@ -531,8 +531,8 @@ class Spreadsheet
         ref = nil
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell; AR - Add row; AC - Add col; Q - Quit]: ",
-          ['S', 'M', 'C', 'AR', 'AC', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AR - Add row; AC - Add col; Q - Quit]: ",
+          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'Q'],
           'S'
         )
 
@@ -567,12 +567,19 @@ class Spreadsheet
                 cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
             end
 
-          when 'C' then
+          when 'CC' then
             ref      = read_cell_ref.call('Select source reference: ')
             cell     = find_or_create_cell(ref)
             dest_ref = read_cell_ref.call('Select destination reference: ')
 
             cell.copy_to dest_ref
+
+          when 'CR' then
+            ref        = read_cell_ref.call('Select source reference: ')
+            cell       = find_or_create_cell(ref)
+            dest_range = read_cell_range.call('Select destination range: ')
+
+            cell.copy_to_range dest_range
 
           when 'AR' then
             add_row read_number.call('Enter row number (>= 1): ')
