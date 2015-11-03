@@ -29,14 +29,15 @@ class CellRef
   delegate :col_ref_name,  to: :class
 
   def initialize(*ref)
-    ref = [*ref].flatten
+    ref.flatten!
 
     ref[0] = col_ref_name(ref[0]) if Fixnum === ref[0]
 
     ref = ref.join
-    ref = normalize_ref(ref)
 
     raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF1}$/i
+
+    ref = normalize_ref(ref)
 
     @ref = ref
   end
