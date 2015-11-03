@@ -6,20 +6,34 @@ class TestSpreadsheet < Test::Unit::TestCase
   context 'CellRef' do
     test '#initialize can receive symbols, strings or even arrays, all case insensitive' do
       [
-        CellRef.new(:A1),
-        CellRef.new(:a1),
-        CellRef.new('A1'),
-        CellRef.new('a1'),
-        CellRef.new('A', 1),
-        CellRef.new('a', 1),
-        CellRef.new(:A, 1),
-        CellRef.new(:a, 1),
-        CellRef.new(['A', 1]),
-        CellRef.new(['a', 1]),
-        CellRef.new([:A, 1]),
-        CellRef.new([:a, 1]),
+        CellRef.new(:A2),
+        CellRef.new(:a2),
+        CellRef.new('A2'),
+        CellRef.new('a2'),
+        CellRef.new('A', 2),
+        CellRef.new('a', 2),
+        CellRef.new(:A, 2),
+        CellRef.new(:a, 2),
+        CellRef.new(1, 2),
+        CellRef.new(['A', 2]),
+        CellRef.new(['a', 2]),
+        CellRef.new([:A, 2]),
+        CellRef.new([:a, 2]),
+        CellRef.new([1, 2])
       ].each do |ref|
-        assert_equal :A1, ref.ref
+        assert_equal :A2, ref.ref
+      end
+
+      [
+        :A,
+        2,
+        '2A',
+        'A 2',
+        nil
+      ].each do |invalid_ref|
+        assert_raises CellRef::IllegalCellReference do
+          CellRef.new invalid_ref
+        end
       end
     end
 
@@ -45,10 +59,10 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal 2, ref_a2.row
     end
 
-    test '#get_col_and_row' do
+    test '#col_and_row' do
       ref_a2 = CellRef.new(:A2)
 
-      assert_equal [:A, 2], ref_a2.get_col_and_row
+      assert_equal [:A, 2], ref_a2.col_and_row
     end
 
     test '#==' do
@@ -97,21 +111,21 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal CellRef.new(:G5), ref_d5.right_neighbor(3)
     end
 
-    test '#top_neighbor' do
+    test '#upper_neighbor' do
       ref_d5 = CellRef.new(:D5)
 
-      assert_equal CellRef.new(:D4), ref_d5.top_neighbor
-      assert_equal CellRef.new(:D1), ref_d5.top_neighbor(4)
+      assert_equal CellRef.new(:D4), ref_d5.upper_neighbor
+      assert_equal CellRef.new(:D1), ref_d5.upper_neighbor(4)
       assert_raises CellRef::IllegalCellReference do
-        ref_d5.top_neighbor(5)
+        ref_d5.upper_neighbor(5)
       end
     end
 
-    test '#bottom_neighbor' do
+    test '#lower_neighbor' do
       ref_d5 = CellRef.new(:D5)
 
-      assert_equal CellRef.new(:D6), ref_d5.bottom_neighbor
-      assert_equal CellRef.new(:D9), ref_d5.bottom_neighbor(4)
+      assert_equal CellRef.new(:D6), ref_d5.lower_neighbor
+      assert_equal CellRef.new(:D9), ref_d5.lower_neighbor(4)
     end
 
     test '#to_s' do
@@ -294,14 +308,17 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '.splat_range works for cells in same row' do
+        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(:A1, :C1)
         assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C1))
       end
 
       test '.splat_range works for cells in same column' do
+        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(:A1, :A3)
         assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:A3))
       end
 
       test '.splat_range works for cells in distinct rows and columns' do
+        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(:A1, :C3)
         assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C3))
       end
 

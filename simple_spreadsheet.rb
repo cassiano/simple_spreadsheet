@@ -29,31 +29,38 @@ class CellRef
   delegate :col_ref_name,  to: :class
 
   def initialize(*ref)
-    ref = [*ref].join
+    ref = [*ref].flatten
 
-    @ref = normalize_cell_ref(ref)
+    ref[0] = col_ref_name(ref[0]) if Fixnum === ref[0]
+
+    ref = ref.join
+    ref = normalize_ref(ref)
+
+    raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF1}$/i
+
+    @ref = ref
   end
 
   def col
-    get_col_and_row[0]
+    @col ||= col_and_row[0]
   end
 
   def col_index
-    col_ref_index col
+    @col_index ||= col_ref_index col
   end
 
   def row
-    get_col_and_row[1]
+    @row ||= col_and_row[1]
   end
 
-  def get_col_and_row
-    ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
+  def col_and_row
+    @col_and_row ||= ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
   end
 
   def neighbor(col_count: 0, row_count: 0)
     raise IllegalCellReference unless col_index + col_count > 0 && row + row_count > 0
 
-    CellRef.new "#{col_ref_name(col_index + col_count)}#{row + row_count}"
+    CellRef.new col_ref_name(col_index + col_count), row + row_count
   end
 
   def right_neighbor(count = 1)
@@ -64,11 +71,11 @@ class CellRef
     neighbor col_count: -count
   end
 
-  def top_neighbor(count = 1)
+  def upper_neighbor(count = 1)
     neighbor row_count: -count
   end
 
-  def bottom_neighbor(count = 1)
+  def lower_neighbor(count = 1)
     neighbor row_count: count
   end
 
@@ -82,7 +89,7 @@ class CellRef
 
   private
 
-  def normalize_cell_ref(ref)
+  def normalize_ref(ref)
     ref.upcase.to_sym
   end
 
@@ -95,8 +102,11 @@ class CellRef
   end
 
   def self.splat_range(upper_left_ref, lower_right_ref)
-    ul_col, ul_row = upper_left_ref.get_col_and_row
-    lr_col, lr_row = lower_right_ref.get_col_and_row
+    upper_left_ref  = new(upper_left_ref)  unless self === upper_left_ref
+    lower_right_ref = new(lower_right_ref) unless self === lower_right_ref
+
+    ul_col, ul_row = upper_left_ref.col_and_row
+    lr_col, lr_row = lower_right_ref.col_and_row
 
     (ul_row..lr_row).map do |row|
       (ul_col..lr_col).map do |col|
@@ -159,7 +169,7 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(CellRef.new(upper_left_ref), CellRef.new(lower_right_ref)).to_s.gsub(':', '')
+        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
       end
 
       # Now find all references.
@@ -216,8 +226,16 @@ class Cell
       references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
   end
 
+  # def copy_to_range(dest_range)
+  #   CellRef.splat_range(dest_range).flatten.each do |ref|
+  #     copy_to ref
+  #   end
+  # end
+
   def copy_to(dest_ref)
     dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+
+    return if dest_ref === ref
 
     dest_content = raw_content.clone
 
@@ -230,6 +248,8 @@ class Cell
 
   def move_to!(dest_ref)
     dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+
+    return if dest_ref === ref
 
     source_ref = ref
     @ref       = dest_ref
@@ -250,11 +270,11 @@ class Cell
   end
 
   def move_down!(row_count = 1)
-    move_to! ref.bottom_neighbor(row_count)
+    move_to! ref.lower_neighbor(row_count)
   end
 
   def move_up!(row_count = 1)
-    move_to! ref.top_neighbor(row_count)
+    move_to! ref.upper_neighbor(row_count)
   end
 
   def update_reference(old_ref, new_ref)
@@ -266,7 +286,7 @@ class Cell
     col_diff = observer_dest_ref.col_index  - observer_source_ref.col_index
     row_diff = observer_dest_ref.row        - observer_source_ref.row
 
-    ref.right_neighbor(col_diff).bottom_neighbor(row_diff)
+    ref.right_neighbor(col_diff).lower_neighbor(row_diff)
   end
 
   def has_formula?
@@ -381,11 +401,11 @@ class Spreadsheet
   end
 
   def add_row(row)
-    bottom_rows = cells[:by_row].find_all do |(row_ref, _)|
+    lower_rows = cells[:by_row].find_all do |(row_ref, _)|
       row_ref >= row
     end
 
-    bottom_rows.sort.each do |(_, row_cells)|
+    lower_rows.sort.each do |(_, row_cells)|
       row_cells.each &:move_down!
     end
   end
@@ -409,7 +429,7 @@ class Spreadsheet
 
       next false unless consistent
 
-      col, row = cell.ref.get_col_and_row
+      col, row = cell.ref.col_and_row
 
       consistent =
         cells[:by_col][col] && cells[:by_col][col][row] == cell &&
@@ -585,7 +605,7 @@ class Spreadsheet
   def update_cell_ref(ref, cell)
     ref = CellRef.new(ref) unless CellRef === ref
 
-    col, row = ref.get_col_and_row
+    col, row = ref.col_and_row
 
     cells[:by_col][col] ||= {}
     cells[:by_row][row] ||= {}
