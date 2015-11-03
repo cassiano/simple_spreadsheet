@@ -308,18 +308,45 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '.splat_range works for cells in same row' do
-        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(:A1, :C1)
-        assert_equal [[:A1, :B1, :C1]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C1))
+        a1_ref = CellRef.new(:A1)
+        b1_ref = CellRef.new(:B1)
+        c1_ref = CellRef.new(:C1)
+
+        assert_equal [[a1_ref, b1_ref, c1_ref]], CellRef.splat_range(:A1, :C1)
+        assert_equal [[a1_ref, b1_ref, c1_ref]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C1))
       end
 
       test '.splat_range works for cells in same column' do
-        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(:A1, :A3)
-        assert_equal [[:A1], [:A2], [:A3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:A3))
+        a1_ref = CellRef.new(:A1)
+        a2_ref = CellRef.new(:A2)
+        a3_ref = CellRef.new(:A3)
+
+        assert_equal [[a1_ref], [a2_ref], [a3_ref]], CellRef.splat_range(:A1, :A3)
+        assert_equal [[a1_ref], [a2_ref], [a3_ref]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:A3))
       end
 
       test '.splat_range works for cells in distinct rows and columns' do
-        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(:A1, :C3)
-        assert_equal [[:A1, :B1, :C1], [:A2, :B2, :C2], [:A3, :B3, :C3]], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C3))
+        a1_ref = CellRef.new(:A1)
+        b1_ref = CellRef.new(:B1)
+        c1_ref = CellRef.new(:C1)
+        a2_ref = CellRef.new(:A2)
+        b2_ref = CellRef.new(:B2)
+        c2_ref = CellRef.new(:C2)
+        a3_ref = CellRef.new(:A3)
+        b3_ref = CellRef.new(:B3)
+        c3_ref = CellRef.new(:C3)
+
+        assert_equal [
+          [a1_ref, b1_ref, c1_ref],
+          [a2_ref, b2_ref, c2_ref],
+          [a3_ref, b3_ref, c3_ref]
+        ], CellRef.splat_range(:A1, :C3)
+
+        assert_equal [
+          [a1_ref, b1_ref, c1_ref],
+          [a2_ref, b2_ref, c2_ref],
+          [a3_ref, b3_ref, c3_ref]
+        ], CellRef.splat_range(CellRef.new(:A1), CellRef.new(:C3))
       end
 
       test 'can hold formulas with functions which include cell ranges' do

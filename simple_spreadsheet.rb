@@ -84,7 +84,7 @@ class CellRef
   end
 
   def ==(other_ref)
-    ref == other_ref.ref
+    ref == (CellRef === other_ref ? other_ref.ref : normalize_ref(other_ref))
   end
 
   private
@@ -110,7 +110,7 @@ class CellRef
 
     (ul_row..lr_row).map do |row|
       (ul_col..lr_col).map do |col|
-        "#{col}#{row}".to_sym
+        new col, row
       end
     end
   end
@@ -169,7 +169,7 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).to_s.gsub(':', '')
+        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
       end
 
       # Now find all references.
@@ -226,11 +226,11 @@ class Cell
       references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
   end
 
-  # def copy_to_range(dest_range)
-  #   CellRef.splat_range(dest_range).flatten.each do |ref|
-  #     copy_to ref
-  #   end
-  # end
+  def copy_to_range(dest_range)
+    CellRef.splat_range(dest_range).flatten.each do |ref|
+      copy_to ref
+    end
+  end
 
   def copy_to(dest_ref)
     dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
@@ -515,6 +515,10 @@ class Spreadsheet
 
     read_cell_ref = -> (message = 'Enter cell reference: ') do
       ref = read_value.call(message, /^#{CellRef::CELL_REF1}$/i)
+    end
+
+    read_cell_range = -> (message = 'Enter cell range: ') do
+      ref = read_value.call(message, CellRef::CELL_RANGE_REG_EXP)
     end
 
     read_number = -> (message, default_value = nil) do
