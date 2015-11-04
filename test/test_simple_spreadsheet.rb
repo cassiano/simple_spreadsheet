@@ -65,6 +65,16 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal [:A, 2], ref_a2.col_and_row
     end
 
+    test '.col_ref_index' do
+      assert_equal 1, CellRef.col_ref_index(:A)
+      assert_equal 27, CellRef.col_ref_index(:AA)
+    end
+
+    test '.col_ref_name' do
+      assert_equal :A,  CellRef.col_ref_name(1)
+      assert_equal :AA, CellRef.col_ref_name(27)
+    end
+
     test '#==' do
       ref_a1         = CellRef.new(:A1)
       ref_another_a1 = CellRef.new(:A1)

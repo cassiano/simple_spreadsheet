@@ -80,6 +80,10 @@ class CellRef
     neighbor row_count: count
   end
 
+  def to_sym
+    ref.to_sym
+  end
+
   def to_s
     ref.to_s
   end
