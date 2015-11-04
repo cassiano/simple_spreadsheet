@@ -18,7 +18,9 @@ class CellRef
   CELL_REF2          = '\b([A-Z]+)([1-9]\d*)\b'
   CELL_REF_REG_EXP   = /#{CELL_REF1}/i
   CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
-  CELL_RANGE_REG_EXP = /((#{CELL_REF1}):(#{CELL_REF1}))/i
+  CELL_RANGE1        = "#{CELL_REF1}:#{CELL_REF1}"
+  CELL_RANGE2        = "(#{CELL_REF1}):(#{CELL_REF1})"
+  CELL_RANGE_REG_EXP = /(#{CELL_RANGE2})/i
 
   # List of possible exceptions.
   class IllegalCellReference < StandardError; end
@@ -392,9 +394,9 @@ class Spreadsheet
     update_cell_ref new_ref, cell
   end
 
-  def add_col(col)
-    cells[:by_col].find_all { |(col_ref, _)|
-      CellRef.col_ref_index(col_ref) >= CellRef.col_ref_index(col)
+  def add_col(col_to_add)
+    cells[:by_col].find_all { |(col, _)|
+      col >= col_to_add
     }.map { |(col_ref, col_cells)|
       { CellRef.col_ref_index(col_ref) => col_cells }
     }.sort { |a, b|
@@ -405,15 +407,15 @@ class Spreadsheet
     end
   end
 
-  def add_row(row)
-    lower_rows = cells[:by_row].find_all do |(row_ref, _)|
-      row_ref >= row
-    end
-
-    lower_rows.sort.each do |(_, row_cells)|
-      row_cells.each &:move_down!
-    end
-  end
+  # def add_row(row)
+  #   lower_rows = cells[:by_row].find_all do |(row_ref, _)|
+  #     row_ref >= row
+  #   end
+  #
+  #   lower_rows.sort.each do |(_, row_cells)|
+  #     row_cells.each &:move_down!
+  #   end
+  # end
 
   def consistent?
     cells[:all].all? do |(_, cell)|
@@ -434,7 +436,8 @@ class Spreadsheet
 
       next false unless consistent
 
-      col, row = cell.ref.col_and_row
+      col = cell.ref.col_index
+      row = cell.ref.row
 
       consistent =
         cells[:by_col][col] && cells[:by_col][col][row] == cell &&
@@ -447,11 +450,8 @@ class Spreadsheet
   end
 
   def pp
-    sorted_cols = cells[:by_col].map { |k, v| { CellRef.col_ref_index(k) => v } }.sort { |a, b| a.keys[0] <=> b.keys[0] }
-    sorted_rows = cells[:by_row].sort
-
-    max_col, _ = (max = sorted_cols.max { |a, b| a.keys[0] <=> b.keys[0] }) && max.keys[0]
-    max_row, _ = sorted_rows.max
+    max_col = (max = cells[:by_col].sort.max) && max[0]
+    max_row = (max = cells[:by_row].sort.max) && max[0]
 
     if max_col && max_row
       print ' ' * PP_ROW_REF_SIZE
@@ -470,7 +470,7 @@ class Spreadsheet
         (1..max_col).each  do |col|
           print PP_COL_DELIMITER if col > 1
 
-          if (cell = cells[:by_row][row] && cells[:by_row][row][CellRef.col_ref_name(col)])
+          if (cell = cells[:by_row][row] && cells[:by_row][row][col])
             print ((cell.has_formula? ? "[`#{cell.raw_content}`] " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
@@ -523,7 +523,7 @@ class Spreadsheet
     end
 
     read_cell_range = -> (message = 'Enter cell range: ') do
-      ref = read_value.call(message, CellRef::CELL_RANGE_REG_EXP)
+      ref = read_value.call(message, /^#{CellRef::CELL_RANGE1}$/i)
     end
 
     read_number = -> (message, default_value = nil) do
@@ -621,7 +621,8 @@ class Spreadsheet
   def update_cell_ref(ref, cell)
     ref = CellRef.new(ref) unless CellRef === ref
 
-    col, row = ref.col_and_row
+    col = ref.col_index
+    row = ref.row
 
     cells[:by_col][col] ||= {}
     cells[:by_row][row] ||= {}
