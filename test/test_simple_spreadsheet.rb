@@ -3,6 +3,39 @@ require 'contest'
 require 'turn/autorun'
 
 class TestSpreadsheet < Test::Unit::TestCase
+  context 'Class' do
+    test '#delegate' do
+      class B
+        def method1
+          1
+        end
+
+        def method2
+          2
+        end
+      end
+
+      class A
+        delegate :method1, :method2, to: :b
+
+        def b
+          B.new
+        end
+      end
+
+      assert_equal 1, A.new.method1
+      assert_equal 2, A.new.method2
+    end
+
+    test '#delegate raises exception when :to option is not specified' do
+      assert_raise ArgumentError.new(':to option is mandatory') do
+        class A
+          delegate :n
+        end
+      end
+    end
+  end
+
   context 'CellRef' do
     test '#initialize can receive symbols, strings or even arrays, all case insensitive' do
       [

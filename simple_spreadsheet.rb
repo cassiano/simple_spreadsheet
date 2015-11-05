@@ -7,7 +7,7 @@ class Class
     options = args.pop if Hash === args.last
     methods = args
 
-    raise ArgumentError, ':to option is mandatory' unless options[:to]
+    raise ArgumentError, ':to option is mandatory' unless options && options[:to]
 
     methods.each do |method|
       define_method method do |*args|
