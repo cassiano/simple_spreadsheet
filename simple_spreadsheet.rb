@@ -399,9 +399,27 @@ class Spreadsheet
     end
   end
 
+  def delete_col(col_to_delete, count = 1)
+    col_to_delete = CellRef.col_ref_index(col_to_delete) unless Fixnum === col_to_delete
+
+    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_ref cell.ref }
+
+    cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
+      rows.sort.each { |(_, cell)| cell.move_left! count }
+    end
+  end
+
   def add_row(row_to_add, count = 1)
     cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
       cols.sort.each { |(_, cell)| cell.move_down! count }
+    end
+  end
+
+  def delete_row(row_to_delete, count = 1)
+    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_ref cell.ref }
+
+    cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
+      cols.sort.each { |(_, cell)| cell.move_up! count }
     end
   end
 
@@ -539,8 +557,8 @@ class Spreadsheet
         ref = nil
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AR - Add row; AC - Add col; Q - Quit]: ",
-          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; Q - Quit]: ",
+          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'Q'],
           'S'
         )
 
@@ -589,17 +607,29 @@ class Spreadsheet
 
             cell.copy_to_range dest_range
 
+          when 'AC' then
+            col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
+            col_count = read_number.call('Enter # of cols (default: 1): ', 1)
+
+            add_col col, col_count
+
           when 'AR' then
             row       = read_number.call('Enter row #: ')
             row_count = read_number.call('Enter # of rows (default: 1): ', 1)
 
             add_row row, row_count
 
-          when 'AC' then
+          when 'DC' then
             col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
             col_count = read_number.call('Enter # of cols (default: 1): ', 1)
 
-            add_col col, col_count
+            delete_col col, col_count
+
+          when 'DR' then
+            row       = read_number.call('Enter row #: ')
+            row_count = read_number.call('Enter # of rows (default: 1): ', 1)
+
+            delete_row row, row_count
 
           when 'Q' then
             break;

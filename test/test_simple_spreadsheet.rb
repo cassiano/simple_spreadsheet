@@ -211,6 +211,27 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
     end
 
+    test '#delete_col' do
+      @spreadsheet.set :A1, 1
+      @spreadsheet.set :A2, 2
+      @spreadsheet.set :B1, 3
+      @spreadsheet.set :B2, 4
+      @spreadsheet.set :C1, 5
+
+      @spreadsheet.delete_col :B
+
+      [
+        [ 1,                    :A1 ],
+        [ 2,                    :A2 ],
+        [ 5,                    :B1 ],
+        [ Cell::DEFAULT_VALUE,  :B2 ],
+        [ Cell::DEFAULT_VALUE,  :C1 ],
+        [ Cell::DEFAULT_VALUE,  :C2 ]
+      ].each do |value, ref|
+        assert_equal value,  @spreadsheet.find_or_create_cell(ref).eval
+      end
+    end
+
     test '#add_row' do
       @spreadsheet.set :A1, 1
       @spreadsheet.set :B1, 2
@@ -228,6 +249,27 @@ class TestSpreadsheet < Test::Unit::TestCase
         [4,                    :B3],
         [Cell::DEFAULT_VALUE,  :A4],
         [Cell::DEFAULT_VALUE,  :B4]
+      ].each do |value, ref|
+        assert_equal value,  @spreadsheet.find_or_create_cell(ref).eval
+      end
+    end
+
+    test '#delete_row' do
+      @spreadsheet.set :A1, 1
+      @spreadsheet.set :B1, 2
+      @spreadsheet.set :A2, 3
+      @spreadsheet.set :B2, 4
+      @spreadsheet.set :A3, 5
+
+      @spreadsheet.delete_row 2
+
+      [
+        [1,                    :A1],
+        [2,                    :B1],
+        [5,                    :A2],
+        [Cell::DEFAULT_VALUE,  :B2],
+        [Cell::DEFAULT_VALUE,  :A3],
+        [Cell::DEFAULT_VALUE,  :B3]
       ].each do |value, ref|
         assert_equal value,  @spreadsheet.find_or_create_cell(ref).eval
       end
