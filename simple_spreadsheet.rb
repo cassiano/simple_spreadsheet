@@ -41,6 +41,10 @@ class CellRef
     @ref = ref
   end
 
+  def self.create(ref)
+    CellRef === ref ? ref : new(ref)
+  end
+
   def col
     @col ||= col_and_row[0]
   end
@@ -131,7 +135,7 @@ class Cell
   def initialize(spreadsheet, ref, content = nil)
     puts "Creating cell #{ref}" if DEBUG
 
-    ref = CellRef.new(ref) unless CellRef === ref
+    ref = CellRef.create(ref)
 
     @spreadsheet = spreadsheet
     @ref         = ref
@@ -650,13 +654,13 @@ class Spreadsheet
   private
 
   def find_cell_ref(ref)
-    ref = CellRef.new(ref) unless CellRef === ref
+    ref = CellRef.create(ref)
 
     cells[:all][ref.ref]
   end
 
   def delete_cell_ref(ref)
-    ref = CellRef.new(ref) unless CellRef === ref
+    ref = CellRef.create(ref)
 
     col = ref.col_index
     row = ref.row
@@ -670,7 +674,7 @@ class Spreadsheet
   end
 
   def update_cell_ref(ref, cell)
-    ref = CellRef.new(ref) unless CellRef === ref
+    ref = CellRef.create(ref)
 
     col = ref.col_index
     row = ref.row
