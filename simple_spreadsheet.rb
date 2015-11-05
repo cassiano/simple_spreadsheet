@@ -32,15 +32,12 @@ class CellRef
 
   def initialize(*ref)
     ref.flatten!
-
     ref[0] = col_ref_name(ref[0]) if Fixnum === ref[0]
-
-    ref = ref.join
+    ref    = ref.join
 
     raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF1}$/i
 
-    ref = normalize_ref(ref)
-
+    ref  = normalize_ref(ref)
     @ref = ref
   end
 
@@ -49,7 +46,7 @@ class CellRef
   end
 
   def col_index
-    @col_index ||= col_ref_index col
+    @col_index ||= col_ref_index(col)
   end
 
   def row
@@ -101,7 +98,7 @@ class CellRef
   end
 
   def self.col_ref_index(col_ref)
-    COL_RANGE.index(col_ref.to_sym) + 1
+    COL_RANGE.index(col_ref.upcase.to_sym) + 1
   end
 
   def self.col_ref_name(col_index)
@@ -390,32 +387,23 @@ class Spreadsheet
   def move_cell(old_ref, new_ref)
     cell = find_cell_ref(old_ref)
 
-    update_cell_ref old_ref, nil
+    delete_cell_ref old_ref
     update_cell_ref new_ref, cell
   end
 
-  def add_col(col_to_add)
-    cells[:by_col].find_all { |(col, _)|
-      col >= col_to_add
-    }.map { |(col_ref, col_cells)|
-      { CellRef.col_ref_index(col_ref) => col_cells }
-    }.sort { |a, b|
-      b.keys[0] <=> a.keys[0]     # Descending order.
-    }.each do |item|
-      col_cells = item.values[0]
-      col_cells.each &:move_right!
+  def add_col(col_to_add, count = 1)
+    col_to_add = CellRef.col_ref_index(col_to_add) unless Fixnum === col_to_add
+
+    cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
+      rows.sort.each { |(_, cell)| cell.move_right! count }
     end
   end
 
-  # def add_row(row)
-  #   lower_rows = cells[:by_row].find_all do |(row_ref, _)|
-  #     row_ref >= row
-  #   end
-  #
-  #   lower_rows.sort.each do |(_, row_cells)|
-  #     row_cells.each &:move_down!
-  #   end
-  # end
+  def add_row(row_to_add, count = 1)
+    cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
+      cols.sort.each { |(_, cell)| cell.move_down! count }
+    end
+  end
 
   def consistent?
     cells[:all].all? do |(_, cell)|
@@ -450,6 +438,18 @@ class Spreadsheet
   end
 
   def pp
+    lrjust = -> (ltext, rtext, size) do
+      result = ''
+      ltext  = ltext.ljust(size).chars
+      rtext  = rtext.rjust(size).chars
+
+      size.times do |i|
+        result << (ltext[i] != " " ? ltext[i] : (rtext[i] != " " ? rtext[i] : " " ))
+      end
+
+      result
+    end
+
     max_col = (max = cells[:by_col].sort.max) && max[0]
     max_row = (max = cells[:by_row].sort.max) && max[0]
 
@@ -471,7 +471,10 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
-            print ((cell.has_formula? ? "[`#{cell.raw_content}`] " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
+            # print ((cell.has_formula? ? "[`#{cell.raw_content}`] " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
+            print cell.has_formula? ?
+                    lrjust.call("`#{cell.raw_content}`", cell.eval.to_s, PP_CELL_SIZE) :
+                    cell.eval.to_s.rjust(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
           end
@@ -587,12 +590,16 @@ class Spreadsheet
             cell.copy_to_range dest_range
 
           when 'AR' then
-            add_row read_number.call('Enter row number (>= 1): ')
+            row       = read_number.call('Enter row #: ')
+            row_count = read_number.call('Enter # of rows (default: 1): ', 1)
+
+            add_row row, row_count
 
           when 'AC' then
-            col = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
+            col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
+            col_count = read_number.call('Enter # of cols (default: 1): ', 1)
 
-            add_col CellRef.col_ref_index(col)
+            add_col col, col_count
 
           when 'Q' then
             break;
@@ -616,6 +623,20 @@ class Spreadsheet
     ref = CellRef.new(ref) unless CellRef === ref
 
     cells[:all][ref.ref]
+  end
+
+  def delete_cell_ref(ref)
+    ref = CellRef.new(ref) unless CellRef === ref
+
+    col = ref.col_index
+    row = ref.row
+
+    cells[:by_col][col] ||= {}
+    cells[:by_row][row] ||= {}
+
+    cells[:all].delete ref.ref
+    cells[:by_col][col].delete row
+    cells[:by_row][row].delete col
   end
 
   def update_cell_ref(ref, cell)

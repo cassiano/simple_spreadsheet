@@ -154,8 +154,18 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert @spreadsheet.consistent? unless @skip_teardown
     end
 
-    test 'new and empty spreadsheets have no cells' do
-      assert_equal 0, @spreadsheet.cell_count
+    context '#cell_count' do
+      test 'new and empty spreadsheets have no cells' do
+        assert_equal 0, @spreadsheet.cell_count
+      end
+
+      test 'counts non-empty spreadsheets correctly' do
+        @spreadsheet.set :A1
+        @spreadsheet.set :A2
+        @spreadsheet.set :A3
+
+        assert_equal 3, @spreadsheet.cell_count
+      end
     end
 
     test '#find_or_create_cell finds preexistent cells' do
@@ -179,41 +189,58 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal a1, @spreadsheet.find_or_create_cell('a1')
     end
 
-    # test '#add_column' do
-    #   a1 = @spreadsheet.set :A1, 1
-    #   b1 = @spreadsheet.set :B1, 2
-    #   a2 = @spreadsheet.set :A2, 3
-    #   b2 = @spreadsheet.set :B2, 4
-    #
-    #   @spreadsheet.add_column :A
-    #
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A2)
-    #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:B1)
-    #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
-    #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:C1)
-    #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:C2)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D1)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:D2)
-    # end
+    test '#add_col' do
+      @spreadsheet.set :A1, 1
+      @spreadsheet.set :A2, 2
+      @spreadsheet.set :B1, 3
+      @spreadsheet.set :B2, 4
 
-    # test '#add_row' do
-    #   a1 = @spreadsheet.set :A1, 1
-    #   b1 = @spreadsheet.set :B1, 2
-    #   a2 = @spreadsheet.set :A2, 3
-    #   b2 = @spreadsheet.set :B2, 4
-    #
-    #   @spreadsheet.add_row 1
-    #
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A1)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B1)
-    #   assert_equal 1,                                 @spreadsheet.find_or_create_cell(:A2)
-    #   assert_equal 2,                                 @spreadsheet.find_or_create_cell(:B2)
-    #   assert_equal 3,                                 @spreadsheet.find_or_create_cell(:A3)
-    #   assert_equal 4,                                 @spreadsheet.find_or_create_cell(:B3)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:A4)
-    #   assert_equal Cell::DEFAULT_VALUE,  @spreadsheet.find_or_create_cell(:B4)
-    # end
+      @spreadsheet.add_col :A
+
+      [
+        [ Cell::DEFAULT_VALUE,  :A1 ],
+        [ Cell::DEFAULT_VALUE,  :A2 ],
+        [ 1,                    :B1 ],
+        [ 2,                    :B2 ],
+        [ 3,                    :C1 ],
+        [ 4,                    :C2 ],
+        [ Cell::DEFAULT_VALUE,  :D1 ],
+        [ Cell::DEFAULT_VALUE,  :D2 ]
+      ].each do |value, ref|
+        assert_equal value,  @spreadsheet.find_or_create_cell(ref).eval
+      end
+    end
+
+    test '#add_row' do
+      @spreadsheet.set :A1, 1
+      @spreadsheet.set :B1, 2
+      @spreadsheet.set :A2, 3
+      @spreadsheet.set :B2, 4
+
+      @spreadsheet.add_row 1
+
+      [
+        [Cell::DEFAULT_VALUE,  :A1],
+        [Cell::DEFAULT_VALUE,  :B1],
+        [1,                    :A2],
+        [2,                    :B2],
+        [3,                    :A3],
+        [4,                    :B3],
+        [Cell::DEFAULT_VALUE,  :A4],
+        [Cell::DEFAULT_VALUE,  :B4]
+      ].each do |value, ref|
+        assert_equal value,  @spreadsheet.find_or_create_cell(ref).eval
+      end
+    end
+
+    test '#add_cell' do
+    end
+
+    test '#move_cell' do
+    end
+
+    test '#consistent?' do
+    end
 
     context 'Cell' do
       test 'can hold scalar values, like numbers and strings' do
@@ -221,41 +248,60 @@ class TestSpreadsheet < Test::Unit::TestCase
         a2 = @spreadsheet.set :A2, 1.234
         a3 = @spreadsheet.set :A3, 'foo bar'
 
-        assert_equal 1, a1.eval
-        assert_equal 1.234, a2.eval
+        assert_equal 1,         a1.eval
+        assert_equal 1.234,     a2.eval
         assert_equal 'foo bar', a3.eval
       end
 
-      test 'can hold formulas, referencing other cells' do
-        a1 = @spreadsheet.set :A1, 1
-        a2 = @spreadsheet.set :A2, 2
-        a3 = @spreadsheet.set :A3, '= (A1 + A2) * 3'
+      context 'formulas' do
+        test 'allow referencing other cells' do
+          a1 = @spreadsheet.set :A1, 1
+          a2 = @spreadsheet.set :A2, 2
+          a3 = @spreadsheet.set :A3, '= (A1 + A2) * 3'
 
-        assert_equal 1, a1.eval
-        assert_equal 2, a2.eval
-        assert_equal (1 + 2) * 3, a3.eval
-      end
-
-      test 'cannot have circular references in formulas' do
-        @skip_teardown = true
-
-        assert_nothing_raised do
-          a1 = @spreadsheet.set :A1, '= A2'
-          a2 = @spreadsheet.set :A2, '= A3'
-          a3 = @spreadsheet.set :A3, '= A4'
-          a4 = @spreadsheet.set :A4, '= A5'
+          assert_equal 1,           a1.eval
+          assert_equal 2,           a2.eval
+          assert_equal (1 + 2) * 3, a3.eval
         end
 
-        assert_raises Cell::CircularReferenceError do
-          a5 = @spreadsheet.set :A5, '= A1'
+        test 'cannot have circular references' do
+          @skip_teardown = true
+
+          assert_nothing_raised do
+            a1 = @spreadsheet.set :A1, '= A2'
+            a2 = @spreadsheet.set :A2, '= A3'
+            a3 = @spreadsheet.set :A3, '= A4'
+            a4 = @spreadsheet.set :A4, '= A5'
+          end
+
+          assert_raises Cell::CircularReferenceError do
+            a5 = @spreadsheet.set :A5, '= A1'
+          end
         end
-      end
 
-      test 'cannot have auto references in formulas' do
-        @skip_teardown = true
+        test 'cannot have auto references' do
+          @skip_teardown = true
 
-        assert_raises Cell::CircularReferenceError do
-          a1 = @spreadsheet.set :A1, '= A1'
+          assert_raises Cell::CircularReferenceError do
+            a1 = @spreadsheet.set :A1, '= A1'
+          end
+        end
+
+        test 'allow the use of buitin functions' do
+          a1 = @spreadsheet.set :A1, 1
+          a2 = @spreadsheet.set :A2, 2
+          a3 = @spreadsheet.set :A3, 4
+          a4 = @spreadsheet.set :A4, '= sum(A1, A2, A3)'
+
+          assert_equal 1 + 2 + 4, a4.eval
+        end
+
+        test 'allow any Ruby code' do
+          a1 = @spreadsheet.set :A1, 'foo'
+          a2 = @spreadsheet.set :A2, 'bar'
+          a3 = @spreadsheet.set :A3, '= "A1" + " " + "A2"'
+
+          assert_equal 'foo bar', a3.eval
         end
       end
 
@@ -298,23 +344,6 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal observers, a2.observers
         assert_equal observers, a3.observers
         assert_equal observers, a4.observers
-      end
-
-      test 'can hold formulas with buitin functions' do
-        a1 = @spreadsheet.set :A1, 1
-        a2 = @spreadsheet.set :A2, 2
-        a3 = @spreadsheet.set :A3, 4
-        a4 = @spreadsheet.set :A4, '= sum(A1, A2, A3)'
-
-        assert_equal 1 + 2 + 4, a4.eval
-      end
-
-      test 'can hold formulas with any Ruby code' do
-        a1 = @spreadsheet.set :A1, 'foo'
-        a2 = @spreadsheet.set :A2, 'bar'
-        a3 = @spreadsheet.set :A3, '= "A1" + " " + "A2"'
-
-        assert_equal 'foo bar', a3.eval
       end
 
       test '.splat_range works for cells in same row' do
