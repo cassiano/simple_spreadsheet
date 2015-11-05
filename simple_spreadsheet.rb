@@ -467,15 +467,7 @@ class Spreadsheet
 
   def pp
     lrjust = -> (ltext, rtext, size) do
-      result = ''
-      ltext  = ltext.ljust(size).chars
-      rtext  = rtext.rjust(size).chars
-
-      size.times do |i|
-        result << (ltext[i] != " " ? ltext[i] : (rtext[i] != " " ? rtext[i] : " " ))
-      end
-
-      result
+      ltext + (' ' * (size - (ltext.size + rtext.size))) + rtext
     end
 
     max_col = (max = cells[:by_col].sort.max) && max[0]
@@ -499,7 +491,6 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
-            # print ((cell.has_formula? ? "[`#{cell.raw_content}`] " : '') + cell.eval.to_s).rjust(PP_CELL_SIZE)
             print cell.has_formula? ?
                     lrjust.call("`#{cell.raw_content}`", cell.eval.to_s, PP_CELL_SIZE) :
                     cell.eval.to_s.rjust(PP_CELL_SIZE)
