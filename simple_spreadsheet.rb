@@ -3,10 +3,17 @@ DEBUG = false
 require 'set'
 
 class Class
-  def delegate(method, options)
-    define_method method do |*args|
-      if (receiver = send(options[:to]))
-        receiver.send method, *args
+  def delegate(*args)
+    options = args.pop if Hash === args.last
+    methods = args
+
+    raise ArgumentError, ':to option is mandatory' unless options[:to]
+
+    methods.each do |method|
+      define_method method do |*args|
+        if (receiver = send(options[:to]))
+          receiver.send method, *args
+        end
       end
     end
   end
@@ -27,8 +34,7 @@ class CellRef
 
   attr_reader :ref
 
-  delegate :col_ref_index, to: :class
-  delegate :col_ref_name,  to: :class
+  delegate :col_ref_index, :col_ref_name, to: :class
 
   def initialize(*ref)
     ref.flatten!
