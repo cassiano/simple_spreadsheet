@@ -152,6 +152,15 @@ class Cell
     self.content = content
   end
 
+  def inspect
+    {
+      spreadsheet: spreadsheet.object_id,
+      ref:         ref.ref,
+      references:  references,
+      observers:   observers
+    }
+  end
+
   def add_observer(cell)
     puts "Adding observer #{cell.ref} to #{ref}" if DEBUG
 
