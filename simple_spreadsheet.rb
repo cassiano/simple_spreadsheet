@@ -35,19 +35,20 @@ class Class
 end
 
 class CellRef
-  COL_RANGE          = ('A'..'ZZZ').to_a.map(&:to_sym)
-  CELL_REF1          = '\b[A-Z]+[1-9]\d*\b'
-  CELL_REF2          = '\b([A-Z]+)([1-9]\d*)\b'
-  CELL_REF_REG_EXP   = /#{CELL_REF1}/i
-  CELL_REF2_REG_EXP  = /#{CELL_REF2}/i
-  CELL_RANGE1        = "#{CELL_REF1}:#{CELL_REF1}"
-  CELL_RANGE2        = "(#{CELL_REF1}):(#{CELL_REF1})"
-  CELL_RANGE_REG_EXP = /(#{CELL_RANGE2})/i
+  COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
+  CELL_REF_FOR_RANGES            = '\b[A-Z]+[1-9]\d*\b'
+  CELL_REF                       = '(?:\b|\$?)[A-Z]+\$?[1-9]\d*\b'
+  CELL_REF_WITH_PARENS           = '((?:\b|\$?))([A-Z]+)(\$?)([1-9]\d*)\b'
+  CELL_REF_REG_EXP               = /#{CELL_REF}/i
+  CELL_REF_WITH_PARENS_REG_EXP   = /#{CELL_REF_WITH_PARENS}/i
+  CELL_RANGE                     = "#{CELL_REF_FOR_RANGES}:#{CELL_REF_FOR_RANGES}"
+  CELL_RANGE_WITH_PARENS         = "(#{CELL_REF_FOR_RANGES}):(#{CELL_REF_FOR_RANGES})"
+  CELL_RANGE_WITH_PARENS_REG_EXP = /(#{CELL_RANGE_WITH_PARENS})/i
 
   # List of possible exceptions.
   class IllegalCellReference < StandardError; end
 
-  attr_reader :ref
+  attr_reader :raw_ref, :ref
 
   delegate :col_ref_index, :col_ref_name, to: :class
 
@@ -56,14 +57,18 @@ class CellRef
     ref[0] = col_ref_name(ref[0]) if Fixnum === ref[0]
     ref    = ref.join
 
-    raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF1}$/i
+    raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF}$/i
 
-    ref  = normalize_ref(ref)
-    @ref = ref
+    @raw_ref = normalize_ref(ref)
+    @ref     = normalize_ref(ref.gsub('$', ''))
   end
 
-  def self.create(ref)
-    CellRef === ref ? ref : new(ref)
+  def self.self_or_new(ref_or_cell_ref)
+    if CellRef === ref_or_cell_ref
+      ref_or_cell_ref
+    else
+      new ref_or_cell_ref
+    end
   end
 
   def col
@@ -74,12 +79,24 @@ class CellRef
     @col_index ||= col_ref_index(col)
   end
 
+  def absolute_col?
+    @absolute_col ||= col_and_row_absolute_status[0]
+  end
+
   def row
     @row ||= col_and_row[1]
   end
 
+  def absolute_row?
+    @absolute_row ||= col_and_row_absolute_status[1]
+  end
+
   def col_and_row
-    @col_and_row ||= ref.to_s =~ CELL_REF2_REG_EXP && [$1.upcase.to_sym, $2.to_i]
+    @col_and_row ||= ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
+  end
+
+  def col_and_row_absolute_status
+    @col_and_row_absolute_status ||= raw_ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$1 == '$', $3 == '$']
   end
 
   def neighbor(col_count: 0, row_count: 0)
@@ -156,7 +173,7 @@ class Cell
   def initialize(spreadsheet, ref, content = nil)
     puts "Creating cell #{ref}" if DEBUG
 
-    ref = CellRef.create(ref)
+    ref = CellRef.self_or_new(ref)
 
     @spreadsheet = spreadsheet
     @ref         = ref
@@ -178,7 +195,7 @@ class Cell
   def add_observer(cell)
     puts "Adding observer #{cell.ref} to #{ref}" if DEBUG
 
-    observers << cell
+    observers << CellWrapper.self_or_new(cell)
   end
 
   def remove_observer(cell)
@@ -206,7 +223,7 @@ class Cell
 
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @content[1..-1].scan(CellRef::CELL_RANGE_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
+      @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
         @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
       end
 
@@ -260,7 +277,7 @@ class Cell
 
   def directly_or_indirectly_references?(cell)
     cell == self ||
-      references.include?(cell) ||
+      references.to_a.include?(cell) ||
       references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
   end
 
@@ -321,8 +338,8 @@ class Cell
 
   # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
   def new_ref(observer_source_ref, observer_dest_ref)
-    col_diff = observer_dest_ref.col_index  - observer_source_ref.col_index
-    row_diff = observer_dest_ref.row        - observer_source_ref.row
+    col_diff = ref.absolute_col? ? 0 : observer_dest_ref.col_index  - observer_source_ref.col_index
+    row_diff = ref.absolute_row? ? 0 : observer_dest_ref.row        - observer_source_ref.row
 
     ref.right_neighbor(col_diff).lower_neighbor(row_diff)
   end
@@ -348,7 +365,7 @@ class Cell
 
     puts "Adding reference #{cell.ref} to #{ref}" if DEBUG
 
-    references << cell
+    references << CellWrapper.self_or_new(cell)
     cell.add_observer self
   end
 
@@ -368,6 +385,45 @@ class Cell
   def remove_references(cells)
     cells.each do |cell|
       remove_reference cell
+    end
+  end
+end
+
+class CellWrapper
+  attr_reader :cell, :relative_or_absolute_ref
+
+  delegate_all  to: :cell
+  delegate      :absolute_col?, :absolute_row?, to: :relative_or_absolute_ref
+
+  def initialize(cell, relative_or_absolute_ref)
+    @cell                     = cell
+    @relative_or_absolute_ref = CellRef.self_or_new(relative_or_absolute_ref)
+  end
+
+  def ==(another_cell_or_cell_wrapper)
+    if CellWrapper === another_cell_or_cell_wrapper
+      cell == another_cell_or_cell_wrapper.cell
+    elsif Cell === another_cell_or_cell_wrapper
+      cell == another_cell_or_cell_wrapper
+    else
+      false
+    end
+  end
+
+  # Redefine `eval` (since it's a private method by default), so it's automatically delegated to the wrapper's corresponding cell.
+  def eval(*args, &block)
+    cell.eval *args, &block
+  end
+
+  def self.self_or_new(cell_or_cell_wrapper, ref = nil)
+    if CellWrapper === cell_or_cell_wrapper
+      if ref && cell_or_cell_wrapper.relative_or_absolute_ref == ref
+        cell_or_cell_wrapper
+      else
+        new cell_or_cell_wrapper.cell, ref || cell_or_cell_wrapper.cell.ref
+      end
+    else
+      new cell_or_cell_wrapper, ref || cell_or_cell_wrapper.ref
     end
   end
 end
@@ -403,9 +459,11 @@ class Spreadsheet
   end
 
   def find_or_create_cell(ref, content = nil)
-    (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
+    cell = (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
       cell.content = content if content
     end
+
+    CellWrapper.self_or_new cell, ref
   end
 
   alias_method :set, :find_or_create_cell
@@ -413,9 +471,11 @@ class Spreadsheet
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
 
-    Cell.new(self, ref, content).tap do |cell|
+    cell = Cell.new(self, ref, content).tap do |cell|
       update_cell_ref ref, cell
     end
+
+    CellWrapper.self_or_new cell, ref
   end
 
   def move_cell(old_ref, new_ref)
@@ -461,8 +521,8 @@ class Spreadsheet
     cells[:all].all? do |(_, cell)|
       consistent =
         if cell.has_formula?
-          cell.find_references == cell.references && cell.references.all? do |reference|
-            reference.observers.include? cell
+          cell.find_references.to_a == cell.references.to_a && cell.references.all? do |reference|
+            reference.observers.to_a.include? cell
           end
         else
           cell.references.empty?
@@ -471,7 +531,7 @@ class Spreadsheet
       next false unless consistent
 
       consistent = cell.observers.all? do |observer|
-        observer.references.include? cell
+        observer.references.to_a.include? cell
       end
 
       next false unless consistent
@@ -574,11 +634,11 @@ class Spreadsheet
     end
 
     read_cell_ref = -> (message = 'Enter cell reference: ') do
-      ref = read_value.call(message, /^#{CellRef::CELL_REF1}$/i)
+      ref = read_value.call(message, /^#{CellRef::CELL_REF}$/i)
     end
 
     read_cell_range = -> (message = 'Enter cell range: ') do
-      ref = read_value.call(message, /^#{CellRef::CELL_RANGE1}$/i)
+      ref = read_value.call(message, /^#{CellRef::CELL_RANGE}$/i)
     end
 
     read_number = -> (message, default_value = nil) do
@@ -686,13 +746,13 @@ class Spreadsheet
   private
 
   def find_cell_ref(ref)
-    ref = CellRef.create(ref)
+    ref = CellRef.self_or_new(ref)
 
     cells[:all][ref.ref]
   end
 
   def delete_cell_ref(ref)
-    ref = CellRef.create(ref)
+    ref = CellRef.self_or_new(ref)
 
     col = ref.col_index
     row = ref.row
@@ -706,7 +766,7 @@ class Spreadsheet
   end
 
   def update_cell_ref(ref, cell)
-    ref = CellRef.create(ref)
+    ref = CellRef.self_or_new(ref)
 
     col = ref.col_index
     row = ref.row
