@@ -5,10 +5,10 @@ require 'colorize'
 
 class Class
   def delegate(*args)
-    options = args.pop if Hash === args.last
+    options = Hash === args.last ? args.pop : {}
     methods = args
 
-    raise ArgumentError, ':to option is mandatory' unless options && options[:to]
+    raise ArgumentError, ':to option is mandatory' unless options[:to]
 
     methods.each do |method|
       define_method method do |*args|
