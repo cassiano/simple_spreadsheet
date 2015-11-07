@@ -6,31 +6,84 @@ class TestSpreadsheet < Test::Unit::TestCase
   context 'Class' do
     test '#delegate' do
       class B
-        def method1
+        def delegated_method1
           1
         end
 
-        def method2
+        def delegated_method2
           2
         end
       end
 
       class A
-        delegate :method1, :method2, to: :b
+        delegate :delegated_method1, :delegated_method2, to: :b
+
+        def method3
+          3
+        end
 
         def b
           B.new
         end
       end
 
-      assert_equal 1, A.new.method1
-      assert_equal 2, A.new.method2
+      a = A.new
+
+      assert_equal 1, a.delegated_method1
+      assert_equal 2, a.delegated_method2
+      assert_equal 3, a.method3
+
+      assert_raise NoMethodError do
+        a.unknown_method
+      end
     end
 
     test '#delegate raises exception when :to option is not specified' do
       assert_raise ArgumentError.new(':to option is mandatory') do
         class A
           delegate :n
+        end
+      end
+    end
+
+    test '#delegate_all' do
+      class B
+        def delegated_method1
+          1
+        end
+
+        def delegated_method2
+          2
+        end
+      end
+
+      class A
+        delegate_all to: :b
+
+        def method3
+          3
+        end
+
+        def b
+          B.new
+        end
+      end
+
+      a = A.new
+
+      assert_equal 1, a.delegated_method1
+      assert_equal 2, a.delegated_method2
+      assert_equal 3, a.method3
+
+      assert_raise NoMethodError do
+        a.unknown_method
+      end
+    end
+
+    test '#delegate_all raises exception when :to option is not specified' do
+      assert_raise ArgumentError.new(':to option is mandatory') do
+        class A
+          delegate_all
         end
       end
     end

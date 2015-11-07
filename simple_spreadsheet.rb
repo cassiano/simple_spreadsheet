@@ -11,9 +11,23 @@ class Class
     raise ArgumentError, ':to option is mandatory' unless options[:to]
 
     methods.each do |method|
-      define_method method do |*args|
+      define_method method do |*args, &block|
         if (receiver = send(options[:to]))
-          receiver.send method, *args
+          receiver.send method, *args, &block
+        end
+      end
+    end
+  end
+
+  def delegate_all(options = {})
+    raise ArgumentError, ':to option is mandatory' unless options[:to]
+
+    define_method :method_missing do |method, *args, &block|
+      if (receiver = send(options[:to]))
+        if receiver.respond_to?(method)
+          receiver.send method, *args, &block
+        else
+          super method, *args, &block
         end
       end
     end
