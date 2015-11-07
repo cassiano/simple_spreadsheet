@@ -1,6 +1,7 @@
 DEBUG = false
 
 require 'set'
+require 'colorize'
 
 class Class
   def delegate(*args)
@@ -465,7 +466,7 @@ class Spreadsheet
     end
   end
 
-  def pp
+  def pp(last_change)
     lrjust = -> (ltext, rtext, size) do
       ltext + (' ' * (size - (ltext.size + rtext.size))) + rtext
     end
@@ -491,9 +492,18 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
-            print cell.has_formula? ?
-                    lrjust.call("`#{cell.raw_content}`", cell.eval.to_s, PP_CELL_SIZE) :
-                    cell.eval.to_s.rjust(PP_CELL_SIZE)
+            value = cell.eval
+
+            text =
+              if cell.has_formula?
+                text = lrjust.call("`#{cell.raw_content}`", value.to_s, PP_CELL_SIZE)
+
+                last_change > cell.last_evaluated_at ? text : text.blue.on_light_white
+              else
+                value.to_s.rjust(PP_CELL_SIZE)
+              end
+
+            print text
           else
             print ' ' * PP_CELL_SIZE
           end
@@ -556,6 +566,8 @@ class Spreadsheet
     loop do
       begin
         ref = nil
+
+        last_change = Time.now
 
         action = read_value.call(
           "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; Q - Quit]: ",
@@ -644,7 +656,7 @@ class Spreadsheet
         puts e.backtrace
       end
 
-      pp
+      pp last_change
     end
   end
 

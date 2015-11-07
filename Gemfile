@@ -4,3 +4,5 @@ group :test do
   gem 'contest'
   gem 'turn'
 end
+
+gem "colorize"
