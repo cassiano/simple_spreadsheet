@@ -99,8 +99,8 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     test '.col_ref_index' do
-      assert_equal 1, CellRef.col_ref_index(:A)
-      assert_equal 27, CellRef.col_ref_index(:AA)
+      assert_equal 1,   CellRef.col_ref_index(:A)
+      assert_equal 27,  CellRef.col_ref_index(:AA)
     end
 
     test '.col_ref_name' do
