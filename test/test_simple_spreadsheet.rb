@@ -452,12 +452,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a3 = @spreadsheet.find_or_create_cell :A3
         a4 = @spreadsheet.find_or_create_cell :A4
 
-        references = Set.new
-        references << a2
-        references << a3
-        references << a4
-
-        assert_equal references.to_a, a1.references.to_a
+        assert_equal [a2, a3, a4], a1.references
       end
 
       test 'are marked as observers in other cells when referencing them' do
@@ -466,12 +461,9 @@ class TestSpreadsheet < Test::Unit::TestCase
         a3 = @spreadsheet.find_or_create_cell :A3
         a4 = @spreadsheet.find_or_create_cell :A4
 
-        observers = Set.new
-        observers << a1
-
-        assert_equal observers.to_a, a2.observers.to_a
-        assert_equal observers.to_a, a3.observers.to_a
-        assert_equal observers.to_a, a4.observers.to_a
+        assert_equal [a1], a2.observers
+        assert_equal [a1], a3.observers
+        assert_equal [a1], a4.observers
       end
 
       test '.splat_range works for cells in same row' do
@@ -564,34 +556,26 @@ class TestSpreadsheet < Test::Unit::TestCase
         a3_last_evaluated_at = a3.last_evaluated_at
         a4_last_evaluated_at = a4.last_evaluated_at
 
-        a1_observers = Set.new
-        a1_observers << a3
-        assert_equal a1_observers.to_a, old_a1.observers.to_a
+        assert_equal [a3], old_a1.observers
 
         # Move A1 to C5, so (old) A1 actually "becomes" C5.
         old_a1.move_to! :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         c5 = @spreadsheet.find_or_create_cell :C5
-        a3_references = Set.new
-        a3_references << c5
-        a3_references << a2
         assert_equal old_a1, c5
         assert_equal '= C5 + A2', a3.content
-        assert_equal a3_references.to_a, a3.references.to_a
+        assert_equal [c5, a2], a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 
         # Assert (new) A1 cell is empty and has no (more) observers.
-        new_a1           = @spreadsheet.find_or_create_cell :A1
-        new_a1_observers = Set.new
+        new_a1 = @spreadsheet.find_or_create_cell :A1
         assert_equal Cell::DEFAULT_VALUE, new_a1.eval
-        assert_equal new_a1_observers.to_a, new_a1.observers.to_a
+        assert_equal [], new_a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
-        c5_observers = Set.new
-        c5_observers << a3
-        assert_equal c5_observers.to_a, c5.observers.to_a
+        assert_equal [a3], c5.observers
 
         # Assert A4 hasn't been reevaluated, since A3's value never actually changed.
         assert_equal a4_last_evaluated_at, a4.last_evaluated_at
@@ -611,9 +595,6 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         b3 = @spreadsheet.find_or_create_cell :B3
-        b3_references = Set.new
-        b3_references << b1
-        b3_references << b2
         assert_equal '= B1 + B2', b3.content
         assert_equal 10 + 20, b3.eval
       end

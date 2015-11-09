@@ -1,6 +1,5 @@
 DEBUG = false
 
-require 'set'
 require 'colorize'
 
 class Class
@@ -31,6 +30,16 @@ class Class
         end
       end
     end
+  end
+end
+
+class Array
+  def subtract(another_array)
+    reject { |item| another_array.include?(item) }
+  end
+
+  def unique_add(item)
+    self << item unless include?(item)
   end
 end
 
@@ -170,6 +179,8 @@ class Cell
 
   attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
 
+  delegate :absolute_col?, :absolute_row?, to: :ref
+
   def initialize(spreadsheet, ref, content = nil)
     puts "Creating cell #{ref}" if DEBUG
 
@@ -177,31 +188,22 @@ class Cell
 
     @spreadsheet = spreadsheet
     @ref         = ref
-    @references  = Set.new
-    @observers   = Set.new
+    @references  = []
+    @observers   = []
 
     self.content = content
   end
 
-  def inspect
-    {
-      spreadsheet: spreadsheet.object_id,
-      ref:         ref.ref,
-      references:  references,
-      observers:   observers
-    }
+  def add_observer(observer)
+    puts "Adding observer #{observer.ref} to #{ref}" if DEBUG
+
+    observers.unique_add observer
   end
 
-  def add_observer(cell)
-    puts "Adding observer #{cell.ref} to #{ref}" if DEBUG
+  def remove_observer(observer)
+    puts "Removing observer #{observer.ref} from #{ref}" if DEBUG
 
-    observers << CellWrapper.self_or_new(cell)
-  end
-
-  def remove_observer(cell)
-    puts "Removing observer #{cell.ref} from #{ref}" if DEBUG
-
-    observers.delete cell
+    observers.delete observer
   end
 
   def content=(new_content)
@@ -209,8 +211,8 @@ class Cell
 
     new_content = new_content.strip if String === new_content
 
-    old_references = Set.new
-    new_references = Set.new
+    old_references = []
+    new_references = []
 
     old_references = references.clone if has_formula?
 
@@ -231,19 +233,21 @@ class Cell
       new_references = find_references
     end
 
-    add_references    new_references - old_references
-    remove_references old_references - new_references
+    add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
+    remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
 
     eval true
   end
 
   def find_references
     if has_formula?
-      content[1..-1].scan(CellRef::CELL_REF_REG_EXP).inject(Set.new) do |memo, ref|
-        memo << spreadsheet.find_or_create_cell(ref)
-      end
+      content[1..-1].scan(CellRef::CELL_REF_REG_EXP).map { |ref|
+        cell = spreadsheet.find_or_create_cell(ref)
+
+        CellWrapper.new cell, ref
+      }.uniq
     else
-      Set.new
+      []
     end
   end
 
@@ -260,8 +264,8 @@ class Cell
 
         evaluated_content = content[1..-1]
 
-        references.each do |cell|
-          evaluated_content.gsub! /\b#{cell.ref}\b/i, cell.eval.to_s
+        references.each do |reference|
+          evaluated_content.gsub! /\b#{Regexp.escape(reference.raw_ref.raw_ref)}\b/i, reference.eval.to_s
         end
 
         Formula.instance_eval { eval evaluated_content }
@@ -277,7 +281,7 @@ class Cell
 
   def directly_or_indirectly_references?(cell)
     cell == self ||
-      references.to_a.include?(cell) ||
+      references.include?(cell) ||
       references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
   end
 
@@ -288,21 +292,21 @@ class Cell
   end
 
   def copy_to(dest_ref)
-    dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+    dest_ref = CellRef.self_or_new(dest_ref)
 
     return if dest_ref === ref
 
     dest_content = raw_content.clone
 
     references.each do |reference|
-      dest_content.gsub! /\b#{reference.ref.ref}\b/i, reference.new_ref(ref, dest_ref).ref.to_s
+      dest_content.gsub! /\b#{Regexp.escape(reference.raw_ref.raw_ref)}\b/i, reference.new_ref(ref, dest_ref).ref.to_s
     end
 
     spreadsheet.set dest_ref, dest_content
   end
 
   def move_to!(dest_ref)
-    dest_ref = CellRef.new(dest_ref) unless CellRef === dest_ref
+    dest_ref = CellRef.self_or_new(dest_ref)
 
     return if dest_ref === ref
 
@@ -336,16 +340,25 @@ class Cell
     self.content = self.content.gsub(/\b#{old_ref}\b/i, new_ref.to_s)
   end
 
-  # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
-  def new_ref(observer_source_ref, observer_dest_ref)
-    col_diff = ref.absolute_col? ? 0 : observer_dest_ref.col_index  - observer_source_ref.col_index
-    row_diff = ref.absolute_row? ? 0 : observer_dest_ref.row        - observer_source_ref.row
-
-    ref.right_neighbor(col_diff).lower_neighbor(row_diff)
-  end
-
   def has_formula?
     String === content && content[0] == '='
+  end
+
+  def ==(another_cell_or_cell_wrapper)
+    if CellWrapper === another_cell_or_cell_wrapper
+      another_cell_or_cell_wrapper.cell == self
+    else
+      super
+    end
+  end
+
+  def inspect
+    {
+      spreadsheet: spreadsheet.object_id,
+      ref:         ref.ref,
+      references:  references,
+      observers:   observers
+    }
   end
 
   private
@@ -353,77 +366,69 @@ class Cell
   def fire_observers
     puts "Firing #{ref}'s observers" if DEBUG && observers.any?
 
-    observers.each do |cell|
-      cell.eval true
+    observers.each do |observer|
+      observer.eval true
     end
   end
 
-  def add_reference(cell)
-    if cell.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular reference detected when adding reference #{cell.ref} to #{ref}!"
+  def add_reference(reference)
+    if reference.directly_or_indirectly_references?(self)
+      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.ref} to #{ref}!"
     end
 
-    puts "Adding reference #{cell.ref} to #{ref}" if DEBUG
+    puts "Adding reference #{reference.ref} to #{ref}" if DEBUG
 
-    references << CellWrapper.self_or_new(cell)
-    cell.add_observer self
+    references.unique_add reference
+    reference.add_observer self
   end
 
-  def remove_reference(cell)
-    puts "Removing reference #{cell.ref} from #{ref}" if DEBUG
+  def remove_reference(reference)
+    puts "Removing reference #{reference.ref} from #{ref}" if DEBUG
 
-    references.delete cell
-    cell.remove_observer self
+    references.delete reference
+    reference.remove_observer self
   end
 
-  def add_references(cells)
-    cells.each do |cell|
-      add_reference cell
+  def add_references(references)
+    references.each do |reference|
+      add_reference reference
     end
   end
 
-  def remove_references(cells)
-    cells.each do |cell|
-      remove_reference cell
+  def remove_references(references)
+    references.each do |reference|
+      remove_reference reference
     end
   end
 end
 
 class CellWrapper
-  attr_reader :cell, :relative_or_absolute_ref
+  attr_reader :cell, :raw_ref
 
   delegate_all  to: :cell
-  delegate      :absolute_col?, :absolute_row?, to: :relative_or_absolute_ref
+  delegate      :absolute_col?, :absolute_row?, to: :raw_ref
 
-  def initialize(cell, relative_or_absolute_ref)
-    @cell                     = cell
-    @relative_or_absolute_ref = CellRef.self_or_new(relative_or_absolute_ref)
+  def initialize(cell, raw_ref)
+    @cell    = cell
+    @raw_ref = CellRef.self_or_new(raw_ref)
+  end
+
+  # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
+  def new_ref(observer_source_ref, observer_dest_ref)
+    col_diff = absolute_col? ? 0 : observer_dest_ref.col_index  - observer_source_ref.col_index
+    row_diff = absolute_row? ? 0 : observer_dest_ref.row        - observer_source_ref.row
+
+    ref.right_neighbor(col_diff).lower_neighbor(row_diff)
   end
 
   def ==(another_cell_or_cell_wrapper)
     if CellWrapper === another_cell_or_cell_wrapper
+      # cell == another_cell_or_cell_wrapper.cell && raw_ref == another_cell_or_cell_wrapper.raw_ref
       cell == another_cell_or_cell_wrapper.cell
     elsif Cell === another_cell_or_cell_wrapper
       cell == another_cell_or_cell_wrapper
     else
       false
-    end
-  end
-
-  # Redefine `eval` (since it's a private method by default), so it's automatically delegated to the wrapper's corresponding cell.
-  def eval(*args, &block)
-    cell.eval *args, &block
-  end
-
-  def self.self_or_new(cell_or_cell_wrapper, ref = nil)
-    if CellWrapper === cell_or_cell_wrapper
-      if ref && cell_or_cell_wrapper.relative_or_absolute_ref == ref
-        cell_or_cell_wrapper
-      else
-        new cell_or_cell_wrapper.cell, ref || cell_or_cell_wrapper.cell.ref
-      end
-    else
-      new cell_or_cell_wrapper, ref || cell_or_cell_wrapper.ref
     end
   end
 end
@@ -459,11 +464,9 @@ class Spreadsheet
   end
 
   def find_or_create_cell(ref, content = nil)
-    cell = (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
+    (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
       cell.content = content if content
     end
-
-    CellWrapper.self_or_new cell, ref
   end
 
   alias_method :set, :find_or_create_cell
@@ -471,11 +474,9 @@ class Spreadsheet
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
 
-    cell = Cell.new(self, ref, content).tap do |cell|
+    Cell.new(self, ref, content).tap do |cell|
       update_cell_ref ref, cell
     end
-
-    CellWrapper.self_or_new cell, ref
   end
 
   def move_cell(old_ref, new_ref)
@@ -521,8 +522,8 @@ class Spreadsheet
     cells[:all].all? do |(_, cell)|
       consistent =
         if cell.has_formula?
-          cell.find_references.to_a == cell.references.to_a && cell.references.all? do |reference|
-            reference.observers.to_a.include? cell
+          cell.find_references == cell.references && cell.references.all? do |reference|
+            reference.observers.include? cell
           end
         else
           cell.references.empty?
@@ -531,7 +532,7 @@ class Spreadsheet
       next false unless consistent
 
       consistent = cell.observers.all? do |observer|
-        observer.references.to_a.include? cell
+        observer.references.include? cell
       end
 
       next false unless consistent
