@@ -1,4 +1,4 @@
-DEBUG = true
+DEBUG = false
 
 require 'colorize'
 
@@ -207,14 +207,12 @@ class Cell
   end
 
   def content=(new_content)
-    puts "Setting new content `#{new_content}` to cell #{ref}" if DEBUG
+    puts "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
 
     new_content = new_content.strip if String === new_content
 
-    old_references = []
+    old_references = references.clone
     new_references = []
-
-    old_references = references.clone if has_formula?
 
     @raw_content, @content =
       if String === new_content
@@ -226,12 +224,18 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub! /#{range}/i, CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
+        @content.gsub!(
+          /(?<![A-Z])#{range}(?![1-9])/i,
+          CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
+        )
       end
 
       # Now find all references.
       new_references = find_references
     end
+
+    puts "Old references: " + old_references.map(&:ref).map(&:ref).inspect if DEBUG
+    puts "New references: " + new_references.map(&:ref).map(&:ref).inspect if DEBUG
 
     add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
     remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
@@ -265,13 +269,9 @@ class Cell
         evaluated_content = content[1..-1]
 
         references.each do |reference|
-          raw_ref = reference.raw_ref.raw_ref
-
-          if raw_ref.to_s.start_with?('$')
-            evaluated_content.gsub! /#{Regexp.escape(raw_ref)}/i, reference.eval.to_s
-          else
-            evaluated_content.gsub! /#{Regexp.escape(raw_ref)}/i, reference.eval.to_s
-          end
+          # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
+          # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
+          evaluated_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.original_ref)}(?![1-9])/i, reference.eval.to_s
         end
 
         Formula.instance_eval { eval evaluated_content }
@@ -300,12 +300,12 @@ class Cell
   def copy_to(dest_ref)
     dest_ref = CellRef.self_or_new(dest_ref)
 
-    return if dest_ref === ref
+    return if dest_ref == ref
 
     dest_content = raw_content.clone
 
     references.each do |reference|
-      dest_content.gsub! /#{Regexp.escape(reference.raw_ref.raw_ref)}/i, reference.new_ref(ref, dest_ref).ref.to_s
+      dest_content.gsub! /#{Regexp.escape(reference.original_ref)}/i, reference.new_ref(ref, dest_ref).ref.to_s
     end
 
     spreadsheet.set dest_ref, dest_content
@@ -314,7 +314,7 @@ class Cell
   def move_to!(dest_ref)
     dest_ref = CellRef.self_or_new(dest_ref)
 
-    return if dest_ref === ref
+    return if dest_ref == ref
 
     source_ref = ref
     @ref       = dest_ref
@@ -343,7 +343,9 @@ class Cell
   end
 
   def update_reference(old_ref, new_ref)
-    self.content = self.content.gsub(/#{old_ref}/i, new_ref.to_s)
+    puts "Updating reference `#{old_ref}` with `#{new_ref}` in #{ref}"
+
+    self.content = self.content.gsub(/(?<![A-Z])#{old_ref}(?![1-9])/i, new_ref.to_s)
   end
 
   def has_formula?
@@ -395,28 +397,48 @@ class Cell
     reference.remove_observer self
   end
 
-  def add_references(references)
-    references.each do |reference|
+  def add_references(new_references)
+    new_references.each do |reference|
       add_reference reference
     end
   end
 
-  def remove_references(references)
-    references.each do |reference|
+  def remove_references(old_references)
+    old_references.each do |reference|
       remove_reference reference
     end
   end
 end
 
 class CellWrapper
-  attr_reader :cell, :raw_ref
+  attr_reader :cell
 
-  delegate_all  to: :cell
-  delegate      :absolute_col?, :absolute_row?, to: :raw_ref
+  delegate_all to: :cell
 
-  def initialize(cell, raw_ref)
-    @cell    = cell
-    @raw_ref = CellRef.self_or_new(raw_ref)
+  def initialize(cell, original_ref)
+    @cell = cell
+
+    @is_absolute_col, @is_absolute_row = original_ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP && [$1 == '$', $3 == '$']
+  end
+
+  def absolute_col?
+    @is_absolute_col
+  end
+
+  def absolute_row?
+    @is_absolute_row
+  end
+
+  def original_ref
+    col, row = cell.ref.col_and_row
+
+    ref_parts = []
+    ref_parts << '$' if absolute_col?
+    ref_parts << col
+    ref_parts << '$' if absolute_row?
+    ref_parts << row
+
+    ref_parts.join
   end
 
   # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
@@ -429,8 +451,9 @@ class CellWrapper
 
   def ==(another_cell_or_cell_wrapper)
     if CellWrapper === another_cell_or_cell_wrapper
-      cell == another_cell_or_cell_wrapper.cell && raw_ref == another_cell_or_cell_wrapper.raw_ref
-      # cell == another_cell_or_cell_wrapper.cell
+      cell == another_cell_or_cell_wrapper.cell &&
+        absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
+        absolute_row? == another_cell_or_cell_wrapper.absolute_row?
     elsif Cell === another_cell_or_cell_wrapper
       cell == another_cell_or_cell_wrapper
     else
