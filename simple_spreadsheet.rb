@@ -57,9 +57,9 @@ class CellRef
   # List of possible exceptions.
   class IllegalCellReference < StandardError; end
 
-  attr_reader :raw_ref, :ref
+  attr_reader :ref
 
-  delegate :col_ref_index, :col_ref_name, to: :class
+  delegate :col_ref_index, :col_ref_name, :normalize_ref, :parse_ref, to: :class
 
   def initialize(*ref)
     ref.flatten!
@@ -68,8 +68,7 @@ class CellRef
 
     raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF}$/i
 
-    @raw_ref = normalize_ref(ref)
-    @ref     = normalize_ref(ref.gsub('$', ''))
+    @ref = normalize_ref(ref)
   end
 
   def self.self_or_new(ref_or_cell_ref)
@@ -88,24 +87,12 @@ class CellRef
     @col_index ||= col_ref_index(col)
   end
 
-  def absolute_col?
-    @absolute_col ||= col_and_row_absolute_status[0]
-  end
-
   def row
     @row ||= col_and_row[1]
   end
 
-  def absolute_row?
-    @absolute_row ||= col_and_row_absolute_status[1]
-  end
-
   def col_and_row
-    @col_and_row ||= ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
-  end
-
-  def col_and_row_absolute_status
-    @col_and_row_absolute_status ||= raw_ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$1 == '$', $3 == '$']
+    @col_and_row ||= parse_ref(ref)
   end
 
   def neighbor(col_count: 0, row_count: 0)
@@ -142,10 +129,12 @@ class CellRef
     ref == (CellRef === other_ref ? other_ref.ref : normalize_ref(other_ref))
   end
 
-  private
+  def self.normalize_ref(ref)
+    parse_ref(ref).join.to_sym
+  end
 
-  def normalize_ref(ref)
-    ref.upcase.to_sym
+  def self.parse_ref(ref)
+    ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
   end
 
   def self.col_ref_index(col_ref)
@@ -224,10 +213,8 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub!(
-          /(?<![A-Z])#{range}(?![1-9])/i,
-          CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
-        )
+        @content.gsub!  /(?<![A-Z])#{range}(?![1-9])/i,
+                        CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
       end
 
       # Now find all references.
@@ -271,7 +258,7 @@ class Cell
         references.each do |reference|
           # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
           # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-          evaluated_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.original_ref)}(?![1-9])/i, reference.eval.to_s
+          evaluated_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.eval.to_s
         end
 
         Formula.instance_eval { eval evaluated_content }
@@ -305,7 +292,7 @@ class Cell
     dest_content = raw_content.clone
 
     references.each do |reference|
-      dest_content.gsub! /#{Regexp.escape(reference.original_ref)}/i, reference.new_ref(ref, dest_ref).ref.to_s
+      dest_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.new_ref(ref, dest_ref)
     end
 
     spreadsheet.set dest_ref, dest_content
@@ -343,9 +330,12 @@ class Cell
   end
 
   def update_reference(old_ref, new_ref)
-    puts "Updating reference `#{old_ref}` with `#{new_ref}` in #{ref}"
+    puts "Updating reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
 
-    self.content = self.content.gsub(/(?<![A-Z])#{old_ref}(?![1-9])/i, new_ref.to_s)
+    old_col, old_row = CellRef.parse_ref(old_ref)
+    new_col, new_row = CellRef.parse_ref(new_ref)
+
+    self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![1-9])/i) { [$1, new_col, $2, new_row].join }
   end
 
   def has_formula?
@@ -415,10 +405,12 @@ class CellWrapper
 
   delegate_all to: :cell
 
-  def initialize(cell, original_ref)
-    @cell = cell
+  def initialize(cell, ref)
+    raise IllegalCellReference unless ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP
 
-    @is_absolute_col, @is_absolute_row = original_ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP && [$1 == '$', $3 == '$']
+    @cell            = cell
+    @is_absolute_col = $1 == '$'
+    @is_absolute_row = $3 == '$'
   end
 
   def absolute_col?
@@ -429,7 +421,7 @@ class CellWrapper
     @is_absolute_row
   end
 
-  def original_ref
+  def full_ref
     col, row = cell.ref.col_and_row
 
     ref_parts = []
@@ -446,7 +438,15 @@ class CellWrapper
     col_diff = absolute_col? ? 0 : observer_dest_ref.col_index  - observer_source_ref.col_index
     row_diff = absolute_row? ? 0 : observer_dest_ref.row        - observer_source_ref.row
 
-    ref.right_neighbor(col_diff).lower_neighbor(row_diff)
+    target_ref = ref.right_neighbor(col_diff).lower_neighbor(row_diff)
+
+    ref_parts = []
+    ref_parts << '$' if absolute_col?
+    ref_parts << target_ref.col
+    ref_parts << '$' if absolute_row?
+    ref_parts << target_ref.row
+
+    ref_parts.join
   end
 
   def ==(another_cell_or_cell_wrapper)
