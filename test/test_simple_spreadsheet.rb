@@ -565,7 +565,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         c5 = @spreadsheet.find_or_create_cell :C5
         assert_equal old_a1, c5
         assert_equal '= C5 + A2', a3.content
-        assert_equal [c5, a2], a3.references
+        assert_equal [a2, c5], a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 

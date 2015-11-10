@@ -1,4 +1,4 @@
-DEBUG = false
+DEBUG = true
 
 require 'colorize'
 
@@ -45,9 +45,9 @@ end
 
 class CellRef
   COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
-  CELL_REF_FOR_RANGES            = '\b[A-Z]+[1-9]\d*\b'
-  CELL_REF                       = '(?:\b|\$?)[A-Z]+\$?[1-9]\d*\b'
-  CELL_REF_WITH_PARENS           = '((?:\b|\$?))([A-Z]+)(\$?)([1-9]\d*)\b'
+  CELL_REF_FOR_RANGES            = '[A-Z]+[1-9]\d*'
+  CELL_REF                       = '\$?[A-Z]+\$?[1-9]\d*'
+  CELL_REF_WITH_PARENS           = '(\$?)([A-Z]+)(\$?)([1-9]\d*)'
   CELL_REF_REG_EXP               = /#{CELL_REF}/i
   CELL_REF_WITH_PARENS_REG_EXP   = /#{CELL_REF_WITH_PARENS}/i
   CELL_RANGE                     = "#{CELL_REF_FOR_RANGES}:#{CELL_REF_FOR_RANGES}"
@@ -226,7 +226,7 @@ class Cell
     if has_formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
-        @content.gsub! /\b#{range}\b/i, CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
+        @content.gsub! /#{range}/i, CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
       end
 
       # Now find all references.
@@ -265,7 +265,13 @@ class Cell
         evaluated_content = content[1..-1]
 
         references.each do |reference|
-          evaluated_content.gsub! /\b#{Regexp.escape(reference.raw_ref.raw_ref)}\b/i, reference.eval.to_s
+          raw_ref = reference.raw_ref.raw_ref
+
+          if raw_ref.to_s.start_with?('$')
+            evaluated_content.gsub! /#{Regexp.escape(raw_ref)}/i, reference.eval.to_s
+          else
+            evaluated_content.gsub! /#{Regexp.escape(raw_ref)}/i, reference.eval.to_s
+          end
         end
 
         Formula.instance_eval { eval evaluated_content }
@@ -299,7 +305,7 @@ class Cell
     dest_content = raw_content.clone
 
     references.each do |reference|
-      dest_content.gsub! /\b#{Regexp.escape(reference.raw_ref.raw_ref)}\b/i, reference.new_ref(ref, dest_ref).ref.to_s
+      dest_content.gsub! /#{Regexp.escape(reference.raw_ref.raw_ref)}/i, reference.new_ref(ref, dest_ref).ref.to_s
     end
 
     spreadsheet.set dest_ref, dest_content
@@ -337,7 +343,7 @@ class Cell
   end
 
   def update_reference(old_ref, new_ref)
-    self.content = self.content.gsub(/\b#{old_ref}\b/i, new_ref.to_s)
+    self.content = self.content.gsub(/#{old_ref}/i, new_ref.to_s)
   end
 
   def has_formula?
@@ -423,8 +429,8 @@ class CellWrapper
 
   def ==(another_cell_or_cell_wrapper)
     if CellWrapper === another_cell_or_cell_wrapper
-      # cell == another_cell_or_cell_wrapper.cell && raw_ref == another_cell_or_cell_wrapper.raw_ref
-      cell == another_cell_or_cell_wrapper.cell
+      cell == another_cell_or_cell_wrapper.cell && raw_ref == another_cell_or_cell_wrapper.raw_ref
+      # cell == another_cell_or_cell_wrapper.cell
     elsif Cell === another_cell_or_cell_wrapper
       cell == another_cell_or_cell_wrapper
     else
