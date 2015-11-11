@@ -4,7 +4,7 @@ require 'colorize'
 
 class Class
   def delegate(*args)
-    options = Hash === args.last ? args.pop : {}
+    options = args.last.is_a?(Hash) ? args.pop : {}
     methods = args
 
     raise ArgumentError, ':to option is mandatory' unless options[:to]
@@ -63,7 +63,7 @@ class CellRef
 
   def initialize(*ref)
     ref.flatten!
-    ref[0] = col_ref_name(ref[0]) if Fixnum === ref[0]
+    ref[0] = col_ref_name(ref[0]) if ref[0].is_a?(Fixnum)
     ref    = ref.join
 
     raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF}$/i
@@ -72,7 +72,7 @@ class CellRef
   end
 
   def self.self_or_new(ref_or_cell_ref)
-    if CellRef === ref_or_cell_ref
+    if ref_or_cell_ref.is_a?(CellRef)
       ref_or_cell_ref
     else
       new ref_or_cell_ref
@@ -126,7 +126,7 @@ class CellRef
   end
 
   def ==(other_ref)
-    ref == (CellRef === other_ref ? other_ref.ref : normalize_ref(other_ref))
+    ref == (other_ref.is_a?(CellRef) ? other_ref.ref : normalize_ref(other_ref))
   end
 
   def self.normalize_ref(ref)
@@ -146,8 +146,8 @@ class CellRef
   end
 
   def self.splat_range(upper_left_ref, lower_right_ref)
-    upper_left_ref  = new(upper_left_ref)  unless self === upper_left_ref
-    lower_right_ref = new(lower_right_ref) unless self === lower_right_ref
+    upper_left_ref  = new(upper_left_ref)  unless upper_left_ref.is_a?(self)
+    lower_right_ref = new(lower_right_ref) unless lower_right_ref.is_a?(self)
 
     ul_col, ul_row = upper_left_ref.col_and_row
     lr_col, lr_row = lower_right_ref.col_and_row
@@ -198,13 +198,13 @@ class Cell
   def content=(new_content)
     puts "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
 
-    new_content = new_content.strip if String === new_content
+    new_content = new_content.strip if new_content.is_a?(String)
 
     old_references = references.clone
     new_references = []
 
     @raw_content, @content =
-      if String === new_content
+      if new_content.is_a?(String)
         [new_content.clone, new_content.clone]
       else
         [new_content, new_content]
@@ -330,7 +330,7 @@ class Cell
   end
 
   def update_reference(old_ref, new_ref)
-    puts "Updating reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
+    puts "Replacing reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
 
     old_col, old_row = CellRef.parse_ref(old_ref)
     new_col, new_row = CellRef.parse_ref(new_ref)
@@ -339,11 +339,11 @@ class Cell
   end
 
   def has_formula?
-    String === content && content[0] == '='
+    content.is_a?(String) && content[0] == '='
   end
 
   def ==(another_cell_or_cell_wrapper)
-    if CellWrapper === another_cell_or_cell_wrapper
+    if another_cell_or_cell_wrapper.is_a?(CellWrapper)
       another_cell_or_cell_wrapper.cell == self
     else
       super
@@ -450,11 +450,11 @@ class CellWrapper
   end
 
   def ==(another_cell_or_cell_wrapper)
-    if CellWrapper === another_cell_or_cell_wrapper
+    if another_cell_or_cell_wrapper.is_a?(CellWrapper)
       cell == another_cell_or_cell_wrapper.cell &&
         absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
         absolute_row? == another_cell_or_cell_wrapper.absolute_row?
-    elsif Cell === another_cell_or_cell_wrapper
+    elsif another_cell_or_cell_wrapper.is_a?(Cell)
       cell == another_cell_or_cell_wrapper
     else
       false
@@ -516,7 +516,7 @@ class Spreadsheet
   end
 
   def add_col(col_to_add, count = 1)
-    col_to_add = CellRef.col_ref_index(col_to_add) unless Fixnum === col_to_add
+    col_to_add = CellRef.col_ref_index(col_to_add) unless col_to_add.is_a?(Fixnum)
 
     cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each { |(_, cell)| cell.move_right! count }
@@ -524,7 +524,7 @@ class Spreadsheet
   end
 
   def delete_col(col_to_delete, count = 1)
-    col_to_delete = CellRef.col_ref_index(col_to_delete) unless Fixnum === col_to_delete
+    col_to_delete = CellRef.col_ref_index(col_to_delete) unless col_to_delete.is_a?(Fixnum)
 
     cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_ref cell.ref }
 
@@ -650,7 +650,7 @@ class Spreadsheet
           elsif value
             if value =~ /^\d+$/ && constraint.respond_to?(:include?)
               constraint.include? value.to_i
-            elsif Regexp === constraint
+            elsif constraint.is_a?(Regexp)
               constraint =~ value
             elsif constraint.respond_to?(:include?)
               constraint.include? value.upcase

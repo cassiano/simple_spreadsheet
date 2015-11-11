@@ -568,7 +568,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 1 + 8 + 4, a4.eval
       end
 
-      test '#move_to!' do
+      test '#move_to! should work with relative references' do
         old_a1 = @spreadsheet.set :A1, 1
         a2     = @spreadsheet.set :A2, 2
         a3     = @spreadsheet.set :A3, '= A1 + A2'
@@ -588,6 +588,41 @@ class TestSpreadsheet < Test::Unit::TestCase
         c5 = @spreadsheet.find_or_create_cell :C5
         assert_equal old_a1, c5
         assert_equal '= C5 + A2', a3.content
+        assert_equal [c5, a2], a3.references
+        assert_equal a3_value, a3.eval
+        assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
+
+        # Assert (new) A1 cell is empty and has no (more) observers.
+        new_a1 = @spreadsheet.find_or_create_cell :A1
+        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal [], new_a1.observers
+
+        # Assert C5 is now being observed by A3, instead of A1.
+        assert_equal [a3], c5.observers
+
+        # Assert A4 hasn't been reevaluated, since A3's value never actually changed.
+        assert_equal a4_last_evaluated_at, a4.last_evaluated_at
+      end
+
+      test '#move_to! should work with absolute references as well' do
+        old_a1 = @spreadsheet.set :A1, 1
+        a2     = @spreadsheet.set :A2, 2
+        a3     = @spreadsheet.set :A3, '= $A1 + A$2'
+        a4     = @spreadsheet.set :A4, '= $A$3'
+
+        assert_equal (a3_value = 1 + 2), a3.eval
+
+        a3_last_evaluated_at = a3.last_evaluated_at
+        a4_last_evaluated_at = a4.last_evaluated_at
+
+        assert_equal [a3], old_a1.observers
+
+        old_a1.move_to! :C5
+
+        # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
+        c5 = @spreadsheet.find_or_create_cell :C5
+        assert_equal old_a1, c5
+        assert_equal '= $C5 + A$2', a3.content
         assert_equal [c5, a2], a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
