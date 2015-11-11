@@ -588,9 +588,11 @@ class Spreadsheet
     max_row = (max = cells[:by_row].sort.max) && max[0]
 
     if max_col && max_row
+      print ' '
       print ' ' * PP_ROW_REF_SIZE
       puts (1..max_col).map { |col| CellRef.col_ref_name(col).to_s.rjust(PP_CELL_SIZE) }.join(PP_COL_DELIMITER)
 
+      print ' '
       print ' ' * PP_ROW_REF_SIZE
       max_col.times do |i|
         print '-' * (PP_CELL_SIZE + 1 + (i == 0 ? 0 : 1))
@@ -600,6 +602,7 @@ class Spreadsheet
 
       (1..max_row).each do |row|
         print "#{row}:".rjust(PP_ROW_REF_SIZE)
+        print ' '
 
         (1..max_col).each  do |col|
           print PP_COL_DELIMITER if col > 1
@@ -609,7 +612,7 @@ class Spreadsheet
 
             text =
               if cell.has_formula?
-                text = lrjust.call("`#{cell.raw_content}`", value.to_s, PP_CELL_SIZE)
+                text = lrjust.call(cell.raw_content, value.to_s, PP_CELL_SIZE)
 
                 last_change > cell.last_evaluated_at ? text : text.blue.on_light_white
               else
