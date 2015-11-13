@@ -467,25 +467,27 @@ class CellWrapper
         absolute_row? == another_cell_or_cell_wrapper.absolute_row?
     when Cell then
       cell == another_cell_or_cell_wrapper
-    # when String, Symbol then
-    #   full_ref == another_cell_or_cell_wrapper.to_s
+    when String, Symbol then
+      full_ref == another_cell_or_cell_wrapper.to_s.upcase
     else
       false
     end
   end
 
-  # def coerce(any_object)
-  #   puts "#coerce called for #{any_object}"
-  #
-  #   case any_object
-  #   when String, Symbol then
-  #     cell = spreadsheet.find_or_create_cell(any_object)
-  #
-  #     [CellWrapper.new(cell, any_object), self]
-  #   else
-  #     super
-  #   end
-  # end
+  def coerce(any_object)
+    # puts "#coerce called for #{any_object}"
+
+    case any_object
+    when String, Symbol then
+      # cell = spreadsheet.find_or_create_cell(any_object)
+      #
+      # [CellWrapper.new(cell, any_object), self]
+
+      [any_object.to_s.upcase, full_ref]
+    else
+      super
+    end
+  end
 end
 
 class Formula
