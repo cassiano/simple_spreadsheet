@@ -43,6 +43,28 @@ class Array
   end
 end
 
+# TODO: Use coerce.
+class Symbol
+  def ==(cell_wrapper)
+    if cell_wrapper.is_a?(CellWrapper)
+      cell_wrapper == self
+    else
+      super
+    end
+  end
+end
+
+# TODO: Use coerce.
+class String
+  def ==(cell_wrapper)
+    if cell_wrapper.is_a?(CellWrapper)
+      cell_wrapper == self
+    else
+      super
+    end
+  end
+end
+
 class CellRef
   COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
   CELL_REF_FOR_RANGES            = '[A-Z]+[1-9]\d*'
@@ -168,8 +190,6 @@ class Cell
 
   attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
 
-  delegate :absolute_col?, :absolute_row?, to: :ref
-
   def initialize(spreadsheet, ref, content = nil)
     puts "Creating cell #{ref}" if DEBUG
 
@@ -210,28 +230,30 @@ class Cell
         [new_content, new_content]
       end
 
-    if has_formula?
+    if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
         @content.gsub!  /(?<![A-Z])#{range}(?![1-9])/i,
                         CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
       end
 
-      # Now find all references.
       new_references = find_references
     end
-
-    puts "Old references: " + old_references.map(&:ref).map(&:ref).inspect if DEBUG
-    puts "New references: " + new_references.map(&:ref).map(&:ref).inspect if DEBUG
 
     add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
     remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
 
-    eval true
+    begin
+      eval true
+    rescue StandardError => e
+      @content = "Error '#{e.message}': `#{@content}`"
+
+      remove_all_references
+    end
   end
 
   def find_references
-    if has_formula?
+    if formula?
       content[1..-1].scan(CellRef::CELL_REF_REG_EXP).map { |ref|
         cell = spreadsheet.find_or_create_cell(ref)
 
@@ -248,7 +270,7 @@ class Cell
     @evaluated_content = nil if reevaluate
 
     @evaluated_content ||=
-      if has_formula?
+      if formula?
         puts ">>> Calculating formula for #{self.ref}" if DEBUG
 
         @last_evaluated_at = Time.now
@@ -338,13 +360,13 @@ class Cell
     self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![1-9])/i) { [$1, new_col, $2, new_row].join }
   end
 
-  def has_formula?
+  def formula?
     content.is_a?(String) && content[0] == '='
   end
 
   def ==(another_cell_or_cell_wrapper)
     if another_cell_or_cell_wrapper.is_a?(CellWrapper)
-      another_cell_or_cell_wrapper.cell == self
+      self == another_cell_or_cell_wrapper.cell
     else
       super
     end
@@ -380,6 +402,12 @@ class Cell
     reference.add_observer self
   end
 
+  def remove_all_references
+    references.each do |reference|
+      remove_reference reference
+    end
+  end
+
   def remove_reference(reference)
     puts "Removing reference #{reference.ref} from #{ref}" if DEBUG
 
@@ -403,7 +431,9 @@ end
 class CellWrapper
   attr_reader :cell
 
-  delegate_all to: :cell
+  # The code below could also re written as: `delegate_all to: :cell`, which would be a little slower (due to the use of the
+  # :method_missing method, but more generic.
+  delegate :directly_or_indirectly_references?, :ref, :eval, :observers, :add_observer, :remove_observer, to: :cell
 
   def initialize(cell, ref)
     raise IllegalCellReference unless ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP
@@ -450,14 +480,17 @@ class CellWrapper
   end
 
   def ==(another_cell_or_cell_wrapper)
-    if another_cell_or_cell_wrapper.is_a?(CellWrapper)
-      cell == another_cell_or_cell_wrapper.cell &&
-        absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
-        absolute_row? == another_cell_or_cell_wrapper.absolute_row?
-    elsif another_cell_or_cell_wrapper.is_a?(Cell)
-      cell == another_cell_or_cell_wrapper
-    else
-      false
+    case another_cell_or_cell_wrapper
+      when CellWrapper then
+        cell == another_cell_or_cell_wrapper.cell &&
+          absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
+          absolute_row? == another_cell_or_cell_wrapper.absolute_row?
+      when Cell then
+        cell == another_cell_or_cell_wrapper
+      when String, Symbol then
+        full_ref == another_cell_or_cell_wrapper.to_s
+      else
+        false
     end
   end
 end
@@ -471,7 +504,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 20
+  PP_CELL_SIZE     = 30
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -550,7 +583,7 @@ class Spreadsheet
   def consistent?
     cells[:all].all? do |(_, cell)|
       consistent =
-        if cell.has_formula?
+        if cell.formula?
           cell.find_references == cell.references && cell.references.all? do |reference|
             reference.observers.include? cell
           end
@@ -611,7 +644,7 @@ class Spreadsheet
             value = cell.eval
 
             text =
-              if cell.has_formula?
+              if cell.formula?
                 text = lrjust.call(cell.raw_content, value.to_s, PP_CELL_SIZE)
 
                 last_change > cell.last_evaluated_at ? text : text.blue.on_light_white

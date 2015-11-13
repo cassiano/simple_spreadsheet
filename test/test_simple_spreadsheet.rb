@@ -392,24 +392,32 @@ class TestSpreadsheet < Test::Unit::TestCase
           assert_equal (1 + 2) * 3, a3.eval
         end
 
-        test 'allow replacing their contents freely' do
+        test 'allow replacing cells contents freely' do
           a2 = @spreadsheet.find_or_create_cell :A2, 1
           a3 = @spreadsheet.find_or_create_cell :A3, 2
           a4 = @spreadsheet.find_or_create_cell :A4, 4
           a5 = @spreadsheet.find_or_create_cell :A5, 8
 
+          a1 = @spreadsheet.set :A1, '= A2'
+          assert_equal 1, a1.eval
+          assert_equal [:A2], a1.references
+
+          # Add references (A3 and A4).
           a1 = @spreadsheet.set :A1, '= A2 + A3 + A4'
           assert_equal 1 + 2 + 4, a1.eval
           assert_equal [a2, a3, a4], a1.references
 
+          # Replace references (A4 by A5).
           a1 = @spreadsheet.set :A1, '= A2 + A3 + A5'
           assert_equal 1 + 2 + 8, a1.eval
           assert_equal [a2, a3, a5], a1.references
 
-          a1 = @spreadsheet.set :A1, '= A2'
-          assert_equal 1, a1.eval
-          assert_equal [a2], a1.references
+          # Remove references (A5).
+          a1 = @spreadsheet.set :A1, '= A2 + A3'
+          assert_equal 1 + 2, a1.eval
+          assert_equal [a2, a3], a1.references
 
+          # Remove all references.
           a1 = @spreadsheet.set :A1, 16
           assert_equal 16, a1.eval
           assert_equal [], a1.references
