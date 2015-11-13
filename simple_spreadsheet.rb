@@ -43,28 +43,6 @@ class Array
   end
 end
 
-# TODO: Use coerce.
-class Symbol
-  def ==(cell_wrapper)
-    if cell_wrapper.is_a?(CellWrapper)
-      cell_wrapper == self
-    else
-      super
-    end
-  end
-end
-
-# TODO: Use coerce.
-class String
-  def ==(cell_wrapper)
-    if cell_wrapper.is_a?(CellWrapper)
-      cell_wrapper == self
-    else
-      super
-    end
-  end
-end
-
 class CellRef
   COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
   CELL_REF_FOR_RANGES            = '[A-Z]+[1-9]\d*'
@@ -433,7 +411,7 @@ class CellWrapper
 
   # The code below could also re written as: `delegate_all to: :cell`, which would be a little slower (due to the use of the
   # :method_missing method, but more generic.
-  delegate :directly_or_indirectly_references?, :ref, :eval, :observers, :add_observer, :remove_observer, to: :cell
+  delegate :directly_or_indirectly_references?, :ref, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, to: :cell
 
   def initialize(cell, ref)
     raise IllegalCellReference unless ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP
@@ -480,19 +458,34 @@ class CellWrapper
   end
 
   def ==(another_cell_or_cell_wrapper)
+    # puts "#== called for #{another_cell_or_cell_wrapper}"
+
     case another_cell_or_cell_wrapper
-      when CellWrapper then
-        cell == another_cell_or_cell_wrapper.cell &&
-          absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
-          absolute_row? == another_cell_or_cell_wrapper.absolute_row?
-      when Cell then
-        cell == another_cell_or_cell_wrapper
-      when String, Symbol then
-        full_ref == another_cell_or_cell_wrapper.to_s
-      else
-        false
+    when CellWrapper then
+      cell == another_cell_or_cell_wrapper.cell &&
+        absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
+        absolute_row? == another_cell_or_cell_wrapper.absolute_row?
+    when Cell then
+      cell == another_cell_or_cell_wrapper
+    # when String, Symbol then
+    #   full_ref == another_cell_or_cell_wrapper.to_s
+    else
+      false
     end
   end
+
+  # def coerce(any_object)
+  #   puts "#coerce called for #{any_object}"
+  #
+  #   case any_object
+  #   when String, Symbol then
+  #     cell = spreadsheet.find_or_create_cell(any_object)
+  #
+  #     [CellWrapper.new(cell, any_object), self]
+  #   else
+  #     super
+  #   end
+  # end
 end
 
 class Formula
@@ -531,7 +524,9 @@ class Spreadsheet
     end
   end
 
-  alias_method :set, :find_or_create_cell
+  def set(ref, content)
+    find_or_create_cell ref, content
+  end
 
   def add_cell(ref, content = nil)
     raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
@@ -725,79 +720,79 @@ class Spreadsheet
         )
 
         case action.upcase
+        when 'S' then
+          ref     = read_cell_ref.call
+          content = read_value.call("Enter content (for formulas start with a '='): ")
+
+          set ref, content
+
+        when 'M' then
+          subaction = read_value.call(
+            'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
+            ['S', 'U', 'D', 'L', 'R'],
+            'S'
+          )
+
+          ref = read_cell_ref.call('Select source reference: ')
+
+          cell = find_or_create_cell(ref)
+
+          case subaction.upcase
           when 'S' then
-            ref     = read_cell_ref.call
-            content = read_value.call("Enter content (for formulas start with a '='): ")
+            cell.move_to! read_cell_ref.call('Select destination reference: ')
+          when 'U' then
+            cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
+          when 'D' then
+            cell.move_down! read_number.call('Enter # of rows (default: 1): ', 1)
+          when 'L' then
+            cell.move_left! read_number.call('Enter # of cols (default: 1): ', 1)
+          when 'R' then
+            cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
+          end
 
-            set ref, content
+        when 'CC' then
+          ref      = read_cell_ref.call('Select source reference: ')
+          cell     = find_or_create_cell(ref)
+          dest_ref = read_cell_ref.call('Select destination reference: ')
 
-          when 'M' then
-            subaction = read_value.call(
-              'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
-              ['S', 'U', 'D', 'L', 'R'],
-              'S'
-            )
+          cell.copy_to dest_ref
 
-            ref = read_cell_ref.call('Select source reference: ')
+        when 'CR' then
+          ref        = read_cell_ref.call('Select source reference: ')
+          cell       = find_or_create_cell(ref)
+          dest_range = read_cell_range.call('Select destination range: ')
 
-            cell = find_or_create_cell(ref)
+          cell.copy_to_range dest_range
 
-            case subaction.upcase
-              when 'S' then
-                cell.move_to! read_cell_ref.call('Select destination reference: ')
-              when 'U' then
-                cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
-              when 'D' then
-                cell.move_down! read_number.call('Enter # of rows (default: 1): ', 1)
-              when 'L' then
-                cell.move_left! read_number.call('Enter # of cols (default: 1): ', 1)
-              when 'R' then
-                cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
-            end
+        when 'AC' then
+          col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
+          col_count = read_number.call('Enter # of cols (default: 1): ', 1)
 
-          when 'CC' then
-            ref      = read_cell_ref.call('Select source reference: ')
-            cell     = find_or_create_cell(ref)
-            dest_ref = read_cell_ref.call('Select destination reference: ')
+          add_col col, col_count
 
-            cell.copy_to dest_ref
+        when 'AR' then
+          row       = read_number.call('Enter row #: ')
+          row_count = read_number.call('Enter # of rows (default: 1): ', 1)
 
-          when 'CR' then
-            ref        = read_cell_ref.call('Select source reference: ')
-            cell       = find_or_create_cell(ref)
-            dest_range = read_cell_range.call('Select destination range: ')
+          add_row row, row_count
 
-            cell.copy_to_range dest_range
+        when 'DC' then
+          col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
+          col_count = read_number.call('Enter # of cols (default: 1): ', 1)
 
-          when 'AC' then
-            col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
-            col_count = read_number.call('Enter # of cols (default: 1): ', 1)
+          delete_col col, col_count
 
-            add_col col, col_count
+        when 'DR' then
+          row       = read_number.call('Enter row #: ')
+          row_count = read_number.call('Enter # of rows (default: 1): ', 1)
 
-          when 'AR' then
-            row       = read_number.call('Enter row #: ')
-            row_count = read_number.call('Enter # of rows (default: 1): ', 1)
+          delete_row row, row_count
 
-            add_row row, row_count
+        when 'Q' then
+          break;
 
-          when 'DC' then
-            col       = read_value.call('Enter col name (>= "A"): ', 'A'..'ZZZ')
-            col_count = read_number.call('Enter # of cols (default: 1): ', 1)
-
-            delete_col col, col_count
-
-          when 'DR' then
-            row       = read_number.call('Enter row #: ')
-            row_count = read_number.call('Enter # of rows (default: 1): ', 1)
-
-            delete_row row, row_count
-
-          when 'Q' then
-            break;
-
-          else
-            next;
+        else
+          next;
         end
       rescue StandardError => e
         puts "Error: `#{e}`."

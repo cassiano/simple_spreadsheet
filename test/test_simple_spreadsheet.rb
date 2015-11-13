@@ -246,16 +246,16 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'counts non-empty spreadsheets correctly' do
-        @spreadsheet.set :A1
-        @spreadsheet.set :A2
-        @spreadsheet.set :A3
+        @spreadsheet.find_or_create_cell :A1
+        @spreadsheet.find_or_create_cell :A2
+        @spreadsheet.find_or_create_cell :A3
 
         assert_equal 3, @spreadsheet.cell_count
       end
     end
 
     test '#find_or_create_cell finds preexistent cells' do
-      a1 = @spreadsheet.set :A1
+      a1 = @spreadsheet.find_or_create_cell :A1
 
       assert_equal a1, @spreadsheet.find_or_create_cell(:A1)
     end
@@ -267,7 +267,7 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     test 'cells can be found using symbol or string case insensitive references' do
-      a1 = @spreadsheet.set :A1
+      a1 = @spreadsheet.find_or_create_cell :A1
 
       assert_equal a1, @spreadsheet.find_or_create_cell(:A1)
       assert_equal a1, @spreadsheet.find_or_create_cell(:a1)
@@ -400,7 +400,8 @@ class TestSpreadsheet < Test::Unit::TestCase
 
           a1 = @spreadsheet.set :A1, '= A2'
           assert_equal 1, a1.eval
-          assert_equal [:A2], a1.references
+          # assert_equal [:A2], a1.references
+          assert_equal [a2], a1.references
 
           # Add references (A3 and A4).
           a1 = @spreadsheet.set :A1, '= A2 + A3 + A4'
@@ -465,13 +466,13 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test 'have default values' do
-        a1 = @spreadsheet.set :A1
+        a1 = @spreadsheet.find_or_create_cell :A1
 
         assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test 'have empty references and observers when created' do
-        a1 = @spreadsheet.set :A1
+        a1 = @spreadsheet.find_or_create_cell :A1
 
         assert_equal 0, a1.references.count
         assert_equal 0, a1.observers.count
@@ -718,7 +719,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '#move_left! should raise an error when in leftmost cell' do
-        a1 = @spreadsheet.set :A1
+        a1 = @spreadsheet.find_or_create_cell :A1
 
         assert_raises CellRef::IllegalCellReference do
           a1.move_left!
@@ -778,7 +779,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '#move_up! should raise an error when in topmost cell' do
-        a1 = @spreadsheet.set :A1
+        a1 = @spreadsheet.find_or_create_cell :A1
 
         assert_raises CellRef::IllegalCellReference do
           a1.move_up!
