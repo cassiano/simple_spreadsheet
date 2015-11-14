@@ -201,12 +201,13 @@ class Cell
     old_references = references.clone
     new_references = []
 
-    @raw_content, @content =
-      if new_content.is_a?(String)
-        [new_content.clone, new_content.clone]
-      else
-        [new_content, new_content]
-      end
+    if new_content.is_a?(String)
+      uppercased_content = new_content.gsub(/(#{CellRef::CELL_REF})/i) { $1.upcase }
+
+      @raw_content, @content = uppercased_content, uppercased_content.clone
+    else
+      @raw_content, @content = new_content, new_content
+    end
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
