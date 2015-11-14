@@ -258,7 +258,7 @@ class Cell
         references.each do |reference|
           # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
           # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-          evaluated_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.eval.to_s
+          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.eval.to_s
         end
 
         Formula.instance_eval { eval evaluated_content }
