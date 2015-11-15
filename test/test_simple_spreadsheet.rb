@@ -237,7 +237,7 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     teardown do
-      assert @spreadsheet.consistent? unless @skip_teardown
+      assert @spreadsheet.consistent?
     end
 
     context '#cell_count' do
@@ -254,16 +254,18 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
     end
 
-    test '#find_or_create_cell finds preexistent cells' do
-      a1 = @spreadsheet.find_or_create_cell(:A1)
+    context '#find_or_create_cell' do
+      test 'finds preexistent cells' do
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-      assert_equal a1, @spreadsheet.find_or_create_cell(:A1)
-    end
+        assert_equal a1, @spreadsheet.find_or_create_cell(:A1)
+      end
 
-    test '#find_or_create_cell creates new cells as needed' do
-      a1 = @spreadsheet.find_or_create_cell(:A1)
+      test 'creates new cells as needed' do
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-      assert_equal :A1, a1.ref.ref
+        assert_equal :A1, a1.ref.ref
+      end
     end
 
     test 'cells can be found using symbol or string case insensitive references' do
@@ -404,29 +406,27 @@ class TestSpreadsheet < Test::Unit::TestCase
           assert_equal [a2], a1.references
 
           # Add references (A3 and A4).
-          a1 = @spreadsheet.set(:A1, '= A2 + A3 + A4')
+          a1.content = '= A2 + A3 + A4'
           assert_equal 1 + 2 + 4, a1.eval
           assert_equal [a2, a3, a4], a1.references
 
           # Replace references (A4 by A5).
-          a1 = @spreadsheet.set(:A1, '= A2 + A3 + A5')
+          a1.content = '= A2 + A3 + A5'
           assert_equal 1 + 2 + 8, a1.eval
           assert_equal [a2, a3, a5], a1.references
 
           # Remove references (A5).
-          a1 = @spreadsheet.set(:A1, '= A2 + A3')
+          a1.content = '= A2 + A3'
           assert_equal 1 + 2, a1.eval
           assert_equal [a2, a3], a1.references
 
           # Remove all references.
-          a1 = @spreadsheet.set(:A1, 16)
+          a1.content = 16
           assert_equal 16, a1.eval
           assert_equal [], a1.references
         end
 
         test 'cannot have circular references' do
-          @skip_teardown = true
-
           assert_nothing_raised do
             a1 = @spreadsheet.set(:A1, '= A2')
             a2 = @spreadsheet.set(:A2, '= A3')
@@ -434,17 +434,15 @@ class TestSpreadsheet < Test::Unit::TestCase
             a4 = @spreadsheet.set(:A4, '= A5')
           end
 
-          assert_raises Cell::CircularReferenceError do
-            a5 = @spreadsheet.set(:A5, '= A1')
-          end
+          a5 = @spreadsheet.set(:A5, '= A1')
+
+          assert_match /Circular reference detected when adding reference A1 to A5/, a5.eval
         end
 
         test 'cannot have auto references' do
-          @skip_teardown = true
+          a1 = @spreadsheet.set(:A1, '= A1')
 
-          assert_raises Cell::CircularReferenceError do
-            a1 = @spreadsheet.set(:A1, '= A1')
-          end
+          assert_match /Circular reference detected when adding reference A1 to A1/, a1.eval
         end
 
         test 'allow the use of buitin functions' do
@@ -462,6 +460,47 @@ class TestSpreadsheet < Test::Unit::TestCase
           a3 = @spreadsheet.set(:A3, '= "A1" + " " + "A2"')
 
           assert_equal 'foo bar', a3.eval
+        end
+
+        context 'references' do
+          test 'using the same type of reference (relative x absolute), points to the same cell only once' do
+            a1 = @spreadsheet.set(:A1, 1)
+
+            10.downto(0) do |i|
+              a2 = @spreadsheet.set(:A2, '= A1' + ' + A1' * i)
+
+              assert_equal [a1], a2.references
+              assert_equal [a2], a1.observers
+            end
+          end
+
+          test 'may point to the same cell more than once, one for each type of reference (relative x absolute)' do
+            a1 = @spreadsheet.set(:A1, 1)
+            a2 = @spreadsheet.set(:A2, '= A1 + $A1 + A$1 + $A$1')
+
+            assert_equal [a1, a1, a1, a1], a2.references
+            assert_equal ['A1', '$A1', 'A$1', '$A$1'], a2.references.map(&:full_ref)
+            assert_equal [a2], a1.observers
+
+            a2.content = '= A1 + $A1 + A$1'
+            assert_equal [a1, a1, a1], a2.references
+            assert_equal ['A1', '$A1', 'A$1'], a2.references.map(&:full_ref)
+            assert_equal [a2], a1.observers
+
+            a2.content = '= A1 + $A1'
+            assert_equal [a1, a1], a2.references
+            assert_equal ['A1', '$A1'], a2.references.map(&:full_ref)
+            assert_equal [a2], a1.observers
+
+            a2.content = '= A1'
+            assert_equal [a1], a2.references
+            assert_equal ['A1'], a2.references.map(&:full_ref)
+            assert_equal [a2], a1.observers
+
+            a2.content = ''
+            assert_equal [], a2.references
+            assert_equal [], a1.observers
+          end
         end
       end
 
@@ -789,83 +828,84 @@ class TestSpreadsheet < Test::Unit::TestCase
 
     context 'CellWrapper' do
       setup do
-        @a1 = @spreadsheet.find_or_create_cell(:A1)
+        @c3 = @spreadsheet.find_or_create_cell(:C3)
+
+        @c3_cw_rel_rel = CellWrapper.new(@c3, 'C3')
+        @c3_cw_rel_abs = CellWrapper.new(@c3, 'C$3')
+        @c3_cw_abs_rel = CellWrapper.new(@c3, '$C3')
+        @c3_cw_abs_abs = CellWrapper.new(@c3, '$C$3')
       end
 
       test '#absolute_col?' do
-        assert_equal false, CellWrapper.new(@a1, 'A1').absolute_col?
-        assert_equal false, CellWrapper.new(@a1, 'A$1').absolute_col?
-        assert_equal true,  CellWrapper.new(@a1, '$A1').absolute_col?
-        assert_equal true,  CellWrapper.new(@a1, '$A$1').absolute_col?
+        assert_equal false, @c3_cw_rel_rel.absolute_col?
+        assert_equal false, @c3_cw_rel_abs.absolute_col?
+        assert_equal true,  @c3_cw_abs_rel.absolute_col?
+        assert_equal true,  @c3_cw_abs_abs.absolute_col?
       end
 
       test '#absolute_row?' do
-        assert_equal false, CellWrapper.new(@a1, 'A1').absolute_row?
-        assert_equal true,  CellWrapper.new(@a1, 'A$1').absolute_row?
-        assert_equal false, CellWrapper.new(@a1, '$A1').absolute_row?
-        assert_equal true,  CellWrapper.new(@a1, '$A$1').absolute_row?
+        assert_equal false, @c3_cw_rel_rel.absolute_row?
+        assert_equal true,  @c3_cw_rel_abs.absolute_row?
+        assert_equal false, @c3_cw_abs_rel.absolute_row?
+        assert_equal true,  @c3_cw_abs_abs.absolute_row?
       end
 
       test '#full_ref' do
-        assert_equal 'A1',    CellWrapper.new(@a1, 'A1').full_ref
-        assert_equal 'A$1',   CellWrapper.new(@a1, 'A$1').full_ref
-        assert_equal '$A1',   CellWrapper.new(@a1, '$A1').full_ref
-        assert_equal '$A$1',  CellWrapper.new(@a1, '$A$1').full_ref
+        assert_equal 'C3',    @c3_cw_rel_rel.full_ref
+        assert_equal 'C$3',   @c3_cw_rel_abs.full_ref
+        assert_equal '$C3',   @c3_cw_abs_rel.full_ref
+        assert_equal '$C$3',  @c3_cw_abs_abs.full_ref
       end
 
       context '#new_ref' do
-        setup do
-          @c3 = @spreadsheet.find_or_create_cell(:C3)
-        end
-
         test 'when moving cells forward in same row' do
           source_ref = CellRef.new('A1')
           dest_ref   = CellRef.new('C1')
 
-          assert_equal 'E3',    CellWrapper.new(@c3, 'C3').new_ref(source_ref, dest_ref)
-          assert_equal 'E$3',   CellWrapper.new(@c3, 'C$3').new_ref(source_ref, dest_ref)
-          assert_equal '$C3',   CellWrapper.new(@c3, '$C3').new_ref(source_ref, dest_ref)
-          assert_equal '$C$3',  CellWrapper.new(@c3, '$C$3').new_ref(source_ref, dest_ref)
+          assert_equal 'E3',    @c3_cw_rel_rel.new_ref(source_ref, dest_ref)
+          assert_equal 'E$3',   @c3_cw_rel_abs.new_ref(source_ref, dest_ref)
+          assert_equal '$C3',   @c3_cw_abs_rel.new_ref(source_ref, dest_ref)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_ref(source_ref, dest_ref)
         end
 
         test 'when moving cells backwards in same row' do
           source_ref = CellRef.new('C1')
           dest_ref   = CellRef.new('A1')
 
-          assert_equal 'A3',    CellWrapper.new(@c3, 'C3').new_ref(source_ref, dest_ref)
-          assert_equal 'A$3',   CellWrapper.new(@c3, 'C$3').new_ref(source_ref, dest_ref)
-          assert_equal '$C3',   CellWrapper.new(@c3, '$C3').new_ref(source_ref, dest_ref)
-          assert_equal '$C$3',  CellWrapper.new(@c3, '$C$3').new_ref(source_ref, dest_ref)
+          assert_equal 'A3',    @c3_cw_rel_rel.new_ref(source_ref, dest_ref)
+          assert_equal 'A$3',   @c3_cw_rel_abs.new_ref(source_ref, dest_ref)
+          assert_equal '$C3',   @c3_cw_abs_rel.new_ref(source_ref, dest_ref)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_ref(source_ref, dest_ref)
         end
 
         test 'when moving cells forward in same column' do
           source_ref = CellRef.new('A1')
           dest_ref   = CellRef.new('A3')
 
-          assert_equal 'C5',    CellWrapper.new(@c3, 'C3').new_ref(source_ref, dest_ref)
-          assert_equal 'C$3',   CellWrapper.new(@c3, 'C$3').new_ref(source_ref, dest_ref)
-          assert_equal '$C5',   CellWrapper.new(@c3, '$C3').new_ref(source_ref, dest_ref)
-          assert_equal '$C$3',  CellWrapper.new(@c3, '$C$3').new_ref(source_ref, dest_ref)
+          assert_equal 'C5',    @c3_cw_rel_rel.new_ref(source_ref, dest_ref)
+          assert_equal 'C$3',   @c3_cw_rel_abs.new_ref(source_ref, dest_ref)
+          assert_equal '$C5',   @c3_cw_abs_rel.new_ref(source_ref, dest_ref)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_ref(source_ref, dest_ref)
         end
 
         test 'when moving cells backwards in same column' do
           source_ref = CellRef.new('A3')
           dest_ref   = CellRef.new('A1')
 
-          assert_equal 'C1',    CellWrapper.new(@c3, 'C3').new_ref(source_ref, dest_ref)
-          assert_equal 'C$3',   CellWrapper.new(@c3, 'C$3').new_ref(source_ref, dest_ref)
-          assert_equal '$C1',   CellWrapper.new(@c3, '$C3').new_ref(source_ref, dest_ref)
-          assert_equal '$C$3',  CellWrapper.new(@c3, '$C$3').new_ref(source_ref, dest_ref)
+          assert_equal 'C1',    @c3_cw_rel_rel.new_ref(source_ref, dest_ref)
+          assert_equal 'C$3',   @c3_cw_rel_abs.new_ref(source_ref, dest_ref)
+          assert_equal '$C1',   @c3_cw_abs_rel.new_ref(source_ref, dest_ref)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_ref(source_ref, dest_ref)
         end
 
         test 'when moving cells to distinct rows and columns' do
           source_ref = CellRef.new('A1')
           dest_ref   = CellRef.new('C3')
 
-          assert_equal 'E5',    CellWrapper.new(@c3, 'C3').new_ref(source_ref, dest_ref)
-          assert_equal 'E$3',   CellWrapper.new(@c3, 'C$3').new_ref(source_ref, dest_ref)
-          assert_equal '$C5',   CellWrapper.new(@c3, '$C3').new_ref(source_ref, dest_ref)
-          assert_equal '$C$3',  CellWrapper.new(@c3, '$C$3').new_ref(source_ref, dest_ref)
+          assert_equal 'E5',    @c3_cw_rel_rel.new_ref(source_ref, dest_ref)
+          assert_equal 'E$3',   @c3_cw_rel_abs.new_ref(source_ref, dest_ref)
+          assert_equal '$C5',   @c3_cw_abs_rel.new_ref(source_ref, dest_ref)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_ref(source_ref, dest_ref)
         end
       end
     end

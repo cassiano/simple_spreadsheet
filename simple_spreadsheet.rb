@@ -219,13 +219,13 @@ class Cell
       new_references = find_references
     end
 
-    add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
-    remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
-
     begin
+      add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
+      remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
+
       eval true
     rescue StandardError => e
-      @content = "Error '#{e.message}': `#{@content}`"
+      @evaluated_content, @raw_content, @content = "Error '#{e.message}': `#{@content}`"
 
       remove_all_references
     end
@@ -391,7 +391,7 @@ class Cell
     puts "Removing reference #{reference.ref} from #{ref}" if DEBUG
 
     references.delete reference
-    reference.remove_observer self
+    reference.remove_observer(self) unless references.any? { |ref| ref.cell == reference.cell }
   end
 
   def add_references(new_references)
@@ -582,7 +582,12 @@ class Spreadsheet
     cells[:all].all? do |(_, cell)|
       consistent =
         if cell.formula?
-          cell.find_references == cell.references && cell.references.all? do |reference|
+          cell_references = cell.find_references.inject [] do |memo, reference|
+            memo.unique_add reference
+            memo
+          end
+
+          cell_references == cell.references && cell.references.all? do |reference|
             reference.observers.include? cell
           end
         else
