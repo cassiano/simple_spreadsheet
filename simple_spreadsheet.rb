@@ -518,7 +518,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 30
+  PP_CELL_SIZE     = 25
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -670,16 +670,19 @@ class Spreadsheet
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
             value = cell.eval
 
+            highlight_cell = false
+
             text =
               if cell.formula?
-                text = lrjust.call(cell.raw_content, value.to_s, PP_CELL_SIZE)
+                # Highlight cell if value has changed.
+                highlight_cell = last_change && cell.last_evaluated_at > last_change
 
-                last_change > cell.last_evaluated_at ? text : text.blue.on_light_white
+                lrjust.call("`#{cell.raw_content}`", value.to_s, PP_CELL_SIZE)
               else
                 value.to_s.rjust(PP_CELL_SIZE)
               end
 
-            print text.truncate(PP_CELL_SIZE)
+            print highlight_cell ? text.truncate(PP_CELL_SIZE).blue.on_light_white : text.truncate(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
           end
@@ -739,9 +742,13 @@ class Spreadsheet
       number.to_i
     end
 
+    last_change = nil
+
     loop do
       begin
         ref = nil
+
+        pp last_change
 
         last_change = Time.now
 
@@ -831,8 +838,6 @@ class Spreadsheet
         puts 'Stack trace:'
         puts e.backtrace
       end
-
-      pp last_change
     end
   end
 
