@@ -872,7 +872,27 @@ class Spreadsheet
 end
 
 def run!
-  Spreadsheet.new.repl
+  spreadsheet = Spreadsheet.new
+
+  a1 = spreadsheet.set(:A1, 'BRL/Dollar rate:')
+  b1 = spreadsheet.set(:A2, 3.90)
+
+  b3 = spreadsheet.set(:B3, 'Expenses (in USD)')
+  c3 = spreadsheet.set(:C3, 'Expenses (in BRL)')
+
+  a4 = spreadsheet.set(:A4, 'Rent')
+  a5 = spreadsheet.set(:A5, 'Payroll')
+  a6 = spreadsheet.set(:A5, 'Utilities')
+
+  b4 = spreadsheet.set(:B4, 10.00)
+  b5 = spreadsheet.set(:B5, 20.00)
+  b6 = spreadsheet.set(:B6, 30.00)
+
+  c4 = spreadsheet.set(:C4, '= B4 * $A$2')
+
+  c4.copy_to_range('C5:C6')
+
+  spreadsheet.repl
 end
 
 run! if __FILE__ == $0
