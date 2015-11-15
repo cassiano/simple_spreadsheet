@@ -43,6 +43,24 @@ class Array
   end
 end
 
+class String
+  def truncate(limit, delimiter = '...')
+    return self if limit < 0
+
+    if size <= limit
+      self
+    else
+      truncate_position = limit - 1 - delimiter.size
+
+      if truncate_position >= 0
+        self[0..truncate_position] + delimiter
+      else
+        delimiter
+      end
+    end
+  end
+end
+
 class CellRef
   COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
   CELL_REF_FOR_RANGES            = '[A-Z]+[1-9]\d*'
@@ -617,7 +635,13 @@ class Spreadsheet
 
   def pp(last_change)
     lrjust = -> (ltext, rtext, size) do
-      ltext + (' ' * (size - (ltext.size + rtext.size))) + rtext
+      spacing_size = size - (ltext.size + rtext.size)
+
+      if spacing_size >= 0
+        ltext + ' ' * spacing_size + rtext
+      else
+        lrjust.call ltext.truncate(ltext.size + spacing_size - 1), rtext, size
+      end
     end
 
     max_col = (max = cells[:by_col].sort.max) && max[0]
@@ -655,7 +679,7 @@ class Spreadsheet
                 value.to_s.rjust(PP_CELL_SIZE)
               end
 
-            print text
+            print text.truncate(PP_CELL_SIZE)
           else
             print ' ' * PP_CELL_SIZE
           end
