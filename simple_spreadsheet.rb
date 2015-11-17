@@ -2,6 +2,10 @@ DEBUG = false
 
 require 'colorize'
 
+def log(msg)
+  puts "[#{Time.now}] #{msg}"
+end
+
 class Class
   def delegate(*args)
     options = args.last.is_a?(Hash) ? args.pop : {}
@@ -187,7 +191,7 @@ class Cell
   attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
 
   def initialize(spreadsheet, ref, content = nil)
-    puts "Creating cell #{ref}" if DEBUG
+    log "Creating cell #{ref}" if DEBUG
 
     ref = CellRef.self_or_new(ref)
 
@@ -200,19 +204,19 @@ class Cell
   end
 
   def add_observer(observer)
-    puts "Adding observer #{observer.ref} to #{ref}" if DEBUG
+    log "Adding observer #{observer.ref} to #{ref}" if DEBUG
 
     observers.unique_add observer
   end
 
   def remove_observer(observer)
-    puts "Removing observer #{observer.ref} from #{ref}" if DEBUG
+    log "Removing observer #{observer.ref} from #{ref}" if DEBUG
 
     observers.delete observer
   end
 
   def content=(new_content)
-    puts "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
+    log "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
 
     new_content = new_content.strip if new_content.is_a?(String)
 
@@ -243,7 +247,7 @@ class Cell
 
       eval true
     rescue StandardError => e
-      @evaluated_content, @raw_content, @content = "Error '#{e.message}': `#{@content}`"
+      @evaluated_content = "Error '#{e.message}'"
 
       remove_all_references
     end
@@ -268,7 +272,7 @@ class Cell
 
     @evaluated_content ||=
       if formula?
-        puts ">>> Calculating formula for #{self.ref}" if DEBUG
+        log ">>> Calculating formula for #{self.ref}" if DEBUG
 
         @last_evaluated_at = Time.now
 
@@ -292,9 +296,18 @@ class Cell
   end
 
   def directly_or_indirectly_references?(cell)
-    cell == self ||
-      references.include?(cell) ||
-      references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
+    log "Checking if #{cell.ref} directly or indirectly references #{self.ref}" if DEBUG
+
+    @directly_or_indirectly_references ||= {}
+
+    if @directly_or_indirectly_references.has_key?(cell)
+      @directly_or_indirectly_references[cell]
+    else
+      @directly_or_indirectly_references[cell] =
+        cell == self ||
+          references.include?(cell) ||
+          references.any? { |reference| reference.directly_or_indirectly_references?(cell) }
+    end
   end
 
   def copy_to_range(dest_range)
@@ -349,7 +362,7 @@ class Cell
   end
 
   def update_reference(old_ref, new_ref)
-    puts "Replacing reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
+    log "Replacing reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
 
     old_col, old_row = CellRef.parse_ref(old_ref)
     new_col, new_row = CellRef.parse_ref(new_ref)
@@ -381,7 +394,7 @@ class Cell
   private
 
   def fire_observers
-    puts "Firing #{ref}'s observers" if DEBUG && observers.any?
+    log "Firing #{ref}'s observers" if DEBUG && observers.any?
 
     observers.each do |observer|
       observer.eval true
@@ -390,10 +403,10 @@ class Cell
 
   def add_reference(reference)
     if reference.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.ref} to #{ref}!"
+      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.ref} to #{ref}"
     end
 
-    puts "Adding reference #{reference.ref} to #{ref}" if DEBUG
+    log "Adding reference #{reference.ref} to #{ref}" if DEBUG
 
     references.unique_add reference
     reference.add_observer self
@@ -406,7 +419,7 @@ class Cell
   end
 
   def remove_reference(reference)
-    puts "Removing reference #{reference.ref} from #{ref}" if DEBUG
+    log "Removing reference #{reference.ref} from #{ref}" if DEBUG
 
     references.delete reference
     reference.remove_observer(self) unless references.any? { |ref| ref.cell == reference.cell }
@@ -477,7 +490,7 @@ class CellWrapper
   end
 
   def ==(another_cell_or_cell_wrapper)
-    # puts "#== called for #{another_cell_or_cell_wrapper}"
+    log "Comparing CellWrapper #{self.ref} with #{another_cell_or_cell_wrapper.ref}" if DEBUG
 
     case another_cell_or_cell_wrapper
     when CellWrapper then
@@ -493,25 +506,25 @@ class CellWrapper
     end
   end
 
-  def coerce(any_object)
-    # puts "#coerce called for #{any_object}"
-
-    case any_object
-    when String, Symbol then
-      # cell = spreadsheet.find_or_create_cell(any_object)
-      #
-      # [CellWrapper.new(cell, any_object), self]
-
-      [any_object.to_s.upcase, full_ref]
-    else
-      super
-    end
-  end
+  # def coerce(any_object)
+  #   # log "#coerce called for #{any_object}"
+  #
+  #   case any_object
+  #   when String, Symbol then
+  #     # cell = spreadsheet.find_or_create_cell(any_object)
+  #     #
+  #     # [CellWrapper.new(cell, any_object), self]
+  #
+  #     [any_object.to_s.upcase, full_ref]
+  #   else
+  #     super
+  #   end
+  # end
 end
 
 class Formula
   def self.sum(*cell_values)
-    puts "Calling sum() for #{cell_values.inspect}" if DEBUG
+    log "Calling sum() for #{cell_values.inspect}" if DEBUG
 
     cell_values.flatten.inject :+
   end
@@ -834,9 +847,9 @@ class Spreadsheet
           next;
         end
       rescue StandardError => e
-        puts "Error: `#{e}`."
-        puts 'Stack trace:'
-        puts e.backtrace
+        log "Error: `#{e}`."
+        log 'Stack trace:'
+        log e.backtrace
       end
     end
   end
@@ -922,9 +935,9 @@ def run!
   a1 = spreadsheet.set(:A1, 1)
   a2 = spreadsheet.set(:A2, 1)
   a3 = spreadsheet.set(:A3, '= $A$1 + $A$2')
+  a4 = spreadsheet.set(:A4, '= $A$2 + $A$3')
 
-  4.upto(30) do |i|
-    # spreadsheet.set [:A, i], "= A#{i - 1} + A#{i - 2}"
+  5.upto(50) do |i|
     spreadsheet.set [:A, i], "= sum(A#{i - 2}:A#{i - 1})"
   end
 
