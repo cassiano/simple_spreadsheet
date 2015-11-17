@@ -247,7 +247,7 @@ class Cell
 
       eval true
     rescue StandardError => e
-      @evaluated_content = "Error '#{e.message}'"
+      @evaluated_content, @raw_content, @content = "Error '#{e.message}': `#{@content}`"
 
       remove_all_references
     end
