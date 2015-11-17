@@ -518,7 +518,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 40
+  PP_CELL_SIZE     = 30
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -897,25 +897,35 @@ def run!
   #
   # c4.copy_to_range('C5:C6')
 
+  # a1 = spreadsheet.set(:A1, 1)
+  # a2 = spreadsheet.set(:A2, 2)
+  # a3 = spreadsheet.set(:A3, 4)
+  # a4 = spreadsheet.set(:A4, 8)
+  # a5 = spreadsheet.set(:A5, 16)
+  #
+  # 6.upto(40) do |i|
+  #   formula = (rand(i - 1) + 1).times.map do |j|
+  #     operator = j == 0 ? '' : '+'    # ['+', '-', '*'].sample
+  #
+  #     operator + [
+  #       rand(2) == 0 ? '' : '$',
+  #       'A',
+  #       rand(2) == 0 ? '' : '$',
+  #       rand(i - 1) + 1
+  #     ].join
+  #   end
+  #
+  #   spreadsheet.set [:A, i], "= #{formula.join}"
+  # end
+
+  # Fibonacci sequence.
   a1 = spreadsheet.set(:A1, 1)
-  a2 = spreadsheet.set(:A2, 2)
-  a3 = spreadsheet.set(:A3, 4)
-  a4 = spreadsheet.set(:A4, 8)
-  a5 = spreadsheet.set(:A5, 16)
+  a2 = spreadsheet.set(:A2, 1)
+  a3 = spreadsheet.set(:A3, '= $A$1 + $A$2')
 
-  6.upto(100) do |i|
-    formula = (rand(5) + 1).times.map do |j|
-      operator = j == 0 ? '' : '+'    # ['+', '-', '*'].sample
-
-      operator + [
-        rand(2) == 0 ? '' : '$',
-        'A',
-        rand(2) == 0 ? '' : '$',
-        rand(i - 1) + 1
-      ].join
-    end
-
-    spreadsheet.set "A#{i}", "= #{formula.join}"
+  4.upto(30) do |i|
+    # spreadsheet.set [:A, i], "= A#{i - 1} + A#{i - 2}"
+    spreadsheet.set [:A, i], "= sum(A#{i - 2}:A#{i - 1})"
   end
 
   spreadsheet.repl
