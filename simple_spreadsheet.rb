@@ -218,7 +218,9 @@ class Cell
   def content=(new_content)
     log "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
 
-    new_content = new_content.strip if new_content.is_a?(String)
+    new_content.strip! if new_content.is_a?(String)
+
+    return if content == new_content
 
     old_references = references.clone
     new_references = []
@@ -242,8 +244,17 @@ class Cell
     end
 
     begin
-      add_references    new_references.subtract(old_references)   # Do not use `new_references - old_references`
-      remove_references old_references.subtract(new_references)   # and `old_references - new_references`.
+      references_to_add    = new_references.subtract(old_references)   # Do not use `new_references - old_references`
+      references_to_remove = old_references.subtract(new_references)   # and `old_references - new_references`.
+
+      if references_to_add.any? || references_to_remove.any?
+        # Notify all direct and indirect observers to reset their circular reference check cache (memoization). Notice
+        # that this step must be done necessarily BEFORE adding or removing references, given observers
+        reset_observers_circular_reference_check_cache
+
+        add_references    references_to_add
+        remove_references references_to_remove
+      end
 
       eval true
     rescue StandardError => e
@@ -272,7 +283,7 @@ class Cell
 
     @evaluated_content ||=
       if formula?
-        log ">>> Calculating formula for #{self.ref}" if DEBUG
+        log ">>> Calculating formula for #{ref}" if DEBUG
 
         @last_evaluated_at = Time.now
 
@@ -295,8 +306,22 @@ class Cell
     @evaluated_content || DEFAULT_VALUE
   end
 
+  def reset_observers_circular_reference_check_cache
+    observers.each &:reset_circular_reference_check_cache
+  end
+
+  def reset_circular_reference_check_cache
+    return unless @directly_or_indirectly_references
+
+    log "Resetting circular reference check cache of #{ref}" if DEBUG
+
+    @directly_or_indirectly_references = nil
+
+    reset_observers_circular_reference_check_cache
+  end
+
   def directly_or_indirectly_references?(cell)
-    log "Checking if #{cell.ref} directly or indirectly references #{self.ref}" if DEBUG
+    log "Checking if #{cell.ref} directly or indirectly references #{ref}" if DEBUG
 
     @directly_or_indirectly_references ||= {}
 
@@ -373,6 +398,7 @@ class Cell
     old_col, old_row = CellRef.parse_ref(old_ref)
     new_col, new_row = CellRef.parse_ref(new_ref)
 
+    # Do not use gsub! (since the setter won't be called).
     self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![1-9])/i) { [$1, new_col, $2, new_row].join }
   end
 
@@ -901,7 +927,7 @@ def run!
   a2 = spreadsheet.set(:A2, 1)
   a3 = spreadsheet.set(:A3, '= A1 + A2')
 
-  a3.copy_to_range 'A4:A130'
+  a3.copy_to_range 'A4:A30'
 
   spreadsheet.repl
 end
