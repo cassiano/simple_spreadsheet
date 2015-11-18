@@ -323,9 +323,15 @@ class Cell
 
     dest_content = raw_content.clone
 
-    references.each do |reference|
-      dest_content.gsub! /(?<![A-Z])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.new_ref(ref, dest_ref)
+    log "Content before replacements in copy_to: #{dest_content}" if DEBUG
+
+    dest_content.gsub! CellRef::CELL_REF_WITH_PARENS_REG_EXP do |content_ref|
+      if (cell = references.find { |reference| reference == content_ref })
+        cell.new_ref ref, dest_ref
+      end
     end
+
+    log "Content after replacements in copy_to: #{dest_content}" if DEBUG
 
     spreadsheet.set dest_ref, dest_content
   end
@@ -490,8 +496,6 @@ class CellWrapper
   end
 
   def ==(another_cell_or_cell_wrapper)
-    log "Comparing CellWrapper #{self.ref} with #{another_cell_or_cell_wrapper.ref}" if DEBUG
-
     case another_cell_or_cell_wrapper
     when CellWrapper then
       cell == another_cell_or_cell_wrapper.cell &&
@@ -892,54 +896,12 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # a1 = spreadsheet.set(:A1, 'BRL/Dollar rate:')
-  # b1 = spreadsheet.set(:A2, 3.90)
-  #
-  # b3 = spreadsheet.set(:B3, 'Expenses (in USD)')
-  # c3 = spreadsheet.set(:C3, 'Expenses (in BRL)')
-  #
-  # a4 = spreadsheet.set(:A4, 'Rent')
-  # a5 = spreadsheet.set(:A5, 'Payroll')
-  # a6 = spreadsheet.set(:A5, 'Utilities')
-  #
-  # b4 = spreadsheet.set(:B4, 10.00)
-  # b5 = spreadsheet.set(:B5, 20.00)
-  # b6 = spreadsheet.set(:B6, 30.00)
-  #
-  # c4 = spreadsheet.set(:C4, '= B4 * $A$2')
-  #
-  # c4.copy_to_range('C5:C6')
-
-  # a1 = spreadsheet.set(:A1, 1)
-  # a2 = spreadsheet.set(:A2, 2)
-  # a3 = spreadsheet.set(:A3, 4)
-  # a4 = spreadsheet.set(:A4, 8)
-  # a5 = spreadsheet.set(:A5, 16)
-  #
-  # 6.upto(40) do |i|
-  #   formula = (rand(i - 1) + 1).times.map do |j|
-  #     operator = j == 0 ? '' : '+'    # ['+', '-', '*'].sample
-  #
-  #     operator + [
-  #       rand(2) == 0 ? '' : '$',
-  #       'A',
-  #       rand(2) == 0 ? '' : '$',
-  #       rand(i - 1) + 1
-  #     ].join
-  #   end
-  #
-  #   spreadsheet.set [:A, i], "= #{formula.join}"
-  # end
-
   # Fibonacci sequence.
   a1 = spreadsheet.set(:A1, 1)
   a2 = spreadsheet.set(:A2, 1)
-  a3 = spreadsheet.set(:A3, '= $A$1 + $A$2')
-  a4 = spreadsheet.set(:A4, '= $A$2 + $A$3')
+  a3 = spreadsheet.set(:A3, '= A1 + A2')
 
-  5.upto(50) do |i|
-    spreadsheet.set [:A, i], "= sum(A#{i - 2}:A#{i - 1})"
-  end
+  a3.copy_to_range 'A4:A130'
 
   spreadsheet.repl
 end
