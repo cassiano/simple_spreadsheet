@@ -250,7 +250,7 @@ class Cell
       if references_to_add.any? || references_to_remove.any?
         # Notify all direct and indirect observers to reset their circular reference check cache (memoization). Notice
         # that this step must be done necessarily BEFORE adding or removing references, given observers
-        reset_observers_circular_reference_check_cache
+        reset_circular_reference_check_cache
 
         add_references    references_to_add
         remove_references references_to_remove
@@ -306,18 +306,18 @@ class Cell
     @evaluated_content || DEFAULT_VALUE
   end
 
-  def reset_observers_circular_reference_check_cache
-    observers.each &:reset_circular_reference_check_cache
-  end
-
   def reset_circular_reference_check_cache
     return unless @directly_or_indirectly_references
 
-    log "Resetting circular reference check cache of #{ref}" if DEBUG
+    log "Resetting circular reference check cache for #{ref}" if DEBUG
 
     @directly_or_indirectly_references = nil
 
     reset_observers_circular_reference_check_cache
+  end
+
+  def reset_observers_circular_reference_check_cache
+    observers.each &:reset_circular_reference_check_cache
   end
 
   def directly_or_indirectly_references?(cell)
@@ -923,11 +923,20 @@ def run!
   spreadsheet = Spreadsheet.new
 
   # Fibonacci sequence.
-  a1 = spreadsheet.set(:A1, 1)
-  a2 = spreadsheet.set(:A2, 1)
-  a3 = spreadsheet.set(:A3, '= A1 + A2')
+  a1 = spreadsheet.set(:A1, 'Fibonacci sequence:')
+  a3 = spreadsheet.set(:A3, 1)
+  a4 = spreadsheet.set(:A4, 1)
+  a5 = spreadsheet.set(:A5, '=A3+A4')
+  a5.copy_to_range 'A6:A20'
 
-  a3.copy_to_range 'A4:A30'
+  # Factorials.
+  d1 = spreadsheet.set(:D1, 'Factorials:')
+  c3 = spreadsheet.set(:C3, 1)
+  d3 = spreadsheet.set(:D3, '=C3')
+  c4 = spreadsheet.set(:C4, '=C3+1')
+  d4 = spreadsheet.set(:D4, '=C4*D3')
+  c4.copy_to_range 'C5:C20'
+  d4.copy_to_range 'D5:D20'
 
   spreadsheet.repl
 end
