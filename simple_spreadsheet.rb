@@ -2,8 +2,10 @@ DEBUG = false
 
 require 'colorize'
 
-def log(msg)
-  puts "[#{Time.now}] #{msg}"
+class Object
+  def log(msg)
+    puts "[#{Time.now}] #{msg}"
+  end
 end
 
 class Class
