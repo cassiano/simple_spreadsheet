@@ -622,7 +622,7 @@ class Spreadsheet
   def delete_col(col_to_delete, count = 1)
     col_to_delete = CellRef.col_ref_index(col_to_delete) unless col_to_delete.is_a?(Fixnum)
 
-    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_ref cell.ref }
+    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_ref cell.ref } if cells[:by_col][col_to_delete]
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each { |(_, cell)| cell.move_left! count }
@@ -636,7 +636,7 @@ class Spreadsheet
   end
 
   def delete_row(row_to_delete, count = 1)
-    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_ref cell.ref }
+    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_ref cell.ref } if cells[:by_row][row_to_delete]
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each { |(_, cell)| cell.move_up! count }
@@ -667,6 +667,30 @@ class Spreadsheet
       end
 
       delete_col source_col, count
+    end
+  end
+
+  def move_row(source_row, dest_row, count = 1)
+    if dest_row >= source_row
+      return if dest_row - (source_row + count - 1) <= 1
+
+      add_row dest_row, count
+
+      cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+        cols.sort.each { |(_, cell)| cell.move_down! dest_row - source_row }
+      end
+
+      delete_row source_row, count
+    else
+      add_row dest_row, count
+
+      source_row += count
+
+      cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+        cols.sort.each { |(_, cell)| cell.move_up! source_row - dest_row }
+      end
+
+      delete_row source_row, count
     end
   end
 
@@ -827,8 +851,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; Q - Quit]: ",
-          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'MC', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; Q - Quit]: ",
+          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'Q'],
           'S'
         )
 
@@ -907,6 +931,13 @@ class Spreadsheet
           col_count  = read_number.call('Enter # of cols (default: 1): ', 1)
 
           move_col source_col, dest_col, col_count
+
+        when 'MR' then
+          source_row = read_number.call('Enter source row: ')
+          dest_row   = read_number.call('Enter destination row: ')
+          row_count  = read_number.call('Enter # of rows (default: 1): ', 1)
+
+          move_row source_row, dest_row, row_count
 
         when 'Q' then
           break;
