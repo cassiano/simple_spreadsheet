@@ -239,7 +239,9 @@ class Cell
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
         @content.gsub!  /(?<![A-Z])#{range}(?![1-9])/i,
-                        CellRef.splat_range(upper_left_ref, lower_right_ref).flatten.map(&:to_s).to_s.gsub('"', '')
+                        '[' + CellRef.splat_range(upper_left_ref, lower_right_ref).map { |row|
+                          '[' + row.map(&:to_s).join(', ') + ']'
+                        }.join(', ') + ']'
       end
 
       new_references = find_references
@@ -475,8 +477,8 @@ end
 class CellWrapper
   attr_reader :cell
 
-  # The code below could also re written as: `delegate_all to: :cell`, which would be a little slower (due to the use of the
-  # :method_missing method, but more generic.
+  # The code below could also re written as: `delegate_all to: :cell`, which would be more generic but a little slower (due to the use of
+  # the :method_missing method).
   delegate :directly_or_indirectly_references?, :ref, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, to: :cell
 
   def initialize(cell, ref)
@@ -641,6 +643,33 @@ class Spreadsheet
     end
   end
 
+  def move_col(source_col, dest_col, count = 1)
+    source_col = CellRef.col_ref_index(source_col)  unless source_col.is_a?(Fixnum)
+    dest_col   = CellRef.col_ref_index(dest_col)    unless dest_col.is_a?(Fixnum)
+
+    if dest_col >= source_col
+      return if dest_col - (source_col + count - 1) <= 1
+
+      add_col dest_col, count
+
+      cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+        rows.sort.each { |(_, cell)| cell.move_right! dest_col - source_col }
+      end
+
+      delete_col source_col, count
+    else
+      add_col dest_col, count
+
+      source_col += count
+
+      cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+        rows.sort.each { |(_, cell)| cell.move_left! source_col - dest_col }
+      end
+
+      delete_col source_col, count
+    end
+  end
+
   def consistent?
     cells[:all].all? do |(_, cell)|
       consistent =
@@ -798,8 +827,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; Q - Quit]: ",
-          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; Q - Quit]: ",
+          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'MC', 'Q'],
           'S'
         )
 
@@ -871,6 +900,13 @@ class Spreadsheet
           row_count = read_number.call('Enter # of rows (default: 1): ', 1)
 
           delete_row row, row_count
+
+        when 'MC' then
+          source_col = read_value.call('Enter source col name (>= "A"): ', 'A'..'ZZZ')
+          dest_col   = read_value.call('Enter destination col name (>= "A"): ', 'A'..'ZZZ')
+          col_count  = read_number.call('Enter # of cols (default: 1): ', 1)
+
+          move_col source_col, dest_col, col_count
 
         when 'Q' then
           break;
