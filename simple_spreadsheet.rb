@@ -748,7 +748,9 @@ class Spreadsheet
     if max_col && max_row
       print ' '
       print ' ' * PP_ROW_REF_SIZE
-      puts (1..max_col).map { |col| CellRef.col_ref_name(col).to_s.rjust(PP_CELL_SIZE) }.join(PP_COL_DELIMITER)
+      puts (1..max_col).map { |col|
+        CellRef.col_ref_name(col).to_s.rjust(index = PP_CELL_SIZE / 2 + 1) + ' ' *  (PP_CELL_SIZE - index)
+      }.join(PP_COL_DELIMITER)
 
       print ' '
       print ' ' * PP_ROW_REF_SIZE
@@ -945,11 +947,14 @@ class Spreadsheet
         else
           next;
         end
+
       rescue StandardError => e
         log "Error: `#{e}`."
         log 'Stack trace:'
         log e.backtrace
       end
+
+      consistent?
     end
   end
 
