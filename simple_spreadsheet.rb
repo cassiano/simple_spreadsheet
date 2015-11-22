@@ -621,7 +621,9 @@ class Spreadsheet
     col_to_add = CellCoordinate.col_coord_index(col_to_add) unless col_to_add.is_a?(Fixnum)
 
     cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
-      rows.sort.each { |(_, cell)| cell.move_right! count }
+      rows.sort.each do |(_, cell)|
+        cell.move_right! count
+      end
     end
   end
 
@@ -631,13 +633,17 @@ class Spreadsheet
     cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_coord cell.coord } if cells[:by_col][col_to_delete]
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
-      rows.sort.each { |(_, cell)| cell.move_left! count }
+      rows.sort.each do |(_, cell)|
+        cell.move_left! count
+      end
     end
   end
 
   def add_row(row_to_add, count = 1)
     cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
-      cols.sort.each { |(_, cell)| cell.move_down! count }
+      cols.sort.each do |(_, cell)|
+        cell.move_down! count
+      end
     end
   end
 
@@ -645,7 +651,9 @@ class Spreadsheet
     cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_coord cell.coord } if cells[:by_row][row_to_delete]
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
-      cols.sort.each { |(_, cell)| cell.move_up! count }
+      cols.sort.each do |(_, cell)|
+        cell.move_up! count
+      end
     end
   end
 
@@ -659,7 +667,9 @@ class Spreadsheet
       add_col dest_col, count
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
-        rows.sort.each { |(_, cell)| cell.move_right! dest_col - source_col }
+        rows.sort.each do |(_, cell)|
+          cell.move_right! dest_col - source_col
+        end
       end
 
       delete_col source_col, count
@@ -669,7 +679,9 @@ class Spreadsheet
       source_col += count
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
-        rows.sort.each { |(_, cell)| cell.move_left! source_col - dest_col }
+        rows.sort.each do |(_, cell)|
+          cell.move_left! source_col - dest_col
+        end
       end
 
       delete_col source_col, count
@@ -683,7 +695,9 @@ class Spreadsheet
       add_row dest_row, count
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
-        cols.sort.each { |(_, cell)| cell.move_down! dest_row - source_row }
+        cols.sort.each do |(_, cell)|
+          cell.move_down! dest_row - source_row
+        end
       end
 
       delete_row source_row, count
@@ -693,7 +707,9 @@ class Spreadsheet
       source_row += count
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
-        cols.sort.each { |(_, cell)| cell.move_up! source_row - dest_row }
+        cols.sort.each do |(_, cell)|
+          cell.move_up! source_row - dest_row
+        end
       end
 
       delete_row source_row, count
