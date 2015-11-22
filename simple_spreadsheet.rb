@@ -46,6 +46,7 @@ class Array
 
   def unique_add(item)
     self << item unless include?(item)
+    self
   end
 end
 
@@ -67,39 +68,39 @@ class String
   end
 end
 
-class CellRef
+class CellCoordinate
   COL_RANGE                      = ('A'..'ZZZ').to_a.map(&:to_sym)
-  CELL_REF_FOR_RANGES            = '[A-Z]+[1-9]\d*'
-  CELL_REF                       = '\$?[A-Z]+\$?[1-9]\d*'
-  CELL_REF_WITH_PARENS           = '(\$?)([A-Z]+)(\$?)([1-9]\d*)'
-  CELL_REF_REG_EXP               = /#{CELL_REF}/i
-  CELL_REF_WITH_PARENS_REG_EXP   = /#{CELL_REF_WITH_PARENS}/i
-  CELL_RANGE                     = "#{CELL_REF_FOR_RANGES}:#{CELL_REF_FOR_RANGES}"
-  CELL_RANGE_WITH_PARENS         = "(#{CELL_REF_FOR_RANGES}):(#{CELL_REF_FOR_RANGES})"
+  CELL_COORD_FOR_RANGES          = '[A-Z]+[1-9]\d*'
+  CELL_COORD                     = '\$?[A-Z]+\$?[1-9]\d*'
+  CELL_COORD_WITH_PARENS         = '(\$?)([A-Z]+)(\$?)([1-9]\d*)'
+  CELL_COORD_REG_EXP             = /#{CELL_COORD}/i
+  CELL_COORD_WITH_PARENS_REG_EXP = /#{CELL_COORD_WITH_PARENS}/i
+  CELL_RANGE                     = "#{CELL_COORD_FOR_RANGES}:#{CELL_COORD_FOR_RANGES}"
+  CELL_RANGE_WITH_PARENS         = "(#{CELL_COORD_FOR_RANGES}):(#{CELL_COORD_FOR_RANGES})"
   CELL_RANGE_WITH_PARENS_REG_EXP = /(#{CELL_RANGE_WITH_PARENS})/i
 
   # List of possible exceptions.
   class IllegalCellReference < StandardError; end
 
-  attr_reader :ref
+  attr_reader :coord
 
-  delegate :col_ref_index, :col_ref_name, :normalize_ref, :parse_ref, to: :class
+  delegate :col_coord_index, :col_coord_name, :normalize_coord, :parse_coord, to: :class
 
-  def initialize(*ref)
-    ref.flatten!
-    ref[0] = col_ref_name(ref[0]) if ref[0].is_a?(Fixnum)
-    ref    = ref.join
+  def initialize(*coord)
+    coord.flatten!
+    coord[0] = col_coord_name(coord[0]) if coord[0].is_a?(Fixnum)
+    coord    = coord.join
 
-    raise IllegalCellReference unless ref =~ /^#{CellRef::CELL_REF}$/i
+    raise IllegalCellReference unless coord =~ /^#{CellCoordinate::CELL_COORD}$/i
 
-    @ref = normalize_ref(ref)
+    @coord = normalize_coord(coord)
   end
 
-  def self.self_or_new(ref_or_cell_ref)
-    if ref_or_cell_ref.is_a?(CellRef)
-      ref_or_cell_ref
+  def self.self_or_new(coord_or_cell_coord)
+    if coord_or_cell_coord.is_a?(CellCoordinate)
+      coord_or_cell_coord
     else
-      new ref_or_cell_ref
+      new coord_or_cell_coord
     end
   end
 
@@ -108,7 +109,7 @@ class CellRef
   end
 
   def col_index
-    @col_index ||= col_ref_index(col)
+    @col_index ||= col_coord_index(col)
   end
 
   def row
@@ -116,13 +117,13 @@ class CellRef
   end
 
   def col_and_row
-    @col_and_row ||= parse_ref(ref)
+    @col_and_row ||= parse_coord(coord)
   end
 
   def neighbor(col_count: 0, row_count: 0)
     raise IllegalCellReference unless col_index + col_count > 0 && row + row_count > 0
 
-    CellRef.new col_ref_name(col_index + col_count), row + row_count
+    CellCoordinate.new col_coord_name(col_index + col_count), row + row_count
   end
 
   def right_neighbor(count = 1)
@@ -142,39 +143,39 @@ class CellRef
   end
 
   def to_sym
-    ref.to_sym
+    coord.to_sym
   end
 
   def to_s
-    ref.to_s
+    coord.to_s
   end
 
-  def ==(other_ref)
-    ref == (other_ref.is_a?(CellRef) ? other_ref.ref : normalize_ref(other_ref))
+  def ==(other_coord)
+    coord == (other_coord.is_a?(CellCoordinate) ? other_coord.coord : normalize_coord(other_coord))
   end
 
-  def self.normalize_ref(ref)
-    parse_ref(ref).join.to_sym
+  def self.normalize_coord(coord)
+    parse_coord(coord).join.to_sym
   end
 
-  def self.parse_ref(ref)
-    ref.to_s =~ CELL_REF_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
+  def self.parse_coord(coord)
+    coord.to_s =~ CELL_COORD_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
   end
 
-  def self.col_ref_index(col_ref)
-    COL_RANGE.index(col_ref.upcase.to_sym) + 1
+  def self.col_coord_index(col_coord)
+    COL_RANGE.index(col_coord.upcase.to_sym) + 1
   end
 
-  def self.col_ref_name(col_index)
+  def self.col_coord_name(col_index)
     COL_RANGE[col_index - 1]
   end
 
-  def self.splat_range(upper_left_ref, lower_right_ref)
-    upper_left_ref  = new(upper_left_ref)  unless upper_left_ref.is_a?(self)
-    lower_right_ref = new(lower_right_ref) unless lower_right_ref.is_a?(self)
+  def self.splat_range(upper_left_coord, lower_right_coord)
+    upper_left_coord  = new(upper_left_coord)  unless upper_left_coord.is_a?(self)
+    lower_right_coord = new(lower_right_coord) unless lower_right_coord.is_a?(self)
 
-    ul_col, ul_row = upper_left_ref.col_and_row
-    lr_col, lr_row = lower_right_ref.col_and_row
+    ul_col, ul_row = upper_left_coord.col_and_row
+    lr_col, lr_row = lower_right_coord.col_and_row
 
     (ul_row..lr_row).map do |row|
       (ul_col..lr_col).map do |col|
@@ -190,15 +191,15 @@ class Cell
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
 
-  attr_reader :spreadsheet, :ref, :references, :observers, :content, :raw_content, :last_evaluated_at
+  attr_reader :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at
 
-  def initialize(spreadsheet, ref, content = nil)
-    log "Creating cell #{ref}" if DEBUG
+  def initialize(spreadsheet, coord, content = nil)
+    log "Creating cell #{coord}" if DEBUG
 
-    ref = CellRef.self_or_new(ref)
+    coord = CellCoordinate.self_or_new(coord)
 
     @spreadsheet = spreadsheet
-    @ref         = ref
+    @coord       = coord
     @references  = []
     @observers   = []
 
@@ -206,19 +207,19 @@ class Cell
   end
 
   def add_observer(observer)
-    log "Adding observer #{observer.ref} to #{ref}" if DEBUG
+    log "Adding observer #{observer.coord} to #{coord}" if DEBUG
 
     observers.unique_add observer
   end
 
   def remove_observer(observer)
-    log "Removing observer #{observer.ref} from #{ref}" if DEBUG
+    log "Removing observer #{observer.coord} from #{coord}" if DEBUG
 
     observers.delete observer
   end
 
   def content=(new_content)
-    log "Replacing content `#{content}` with new content `#{new_content}` in cell #{ref}" if DEBUG
+    log "Replacing content `#{content}` with new content `#{new_content}` in cell #{coord}" if DEBUG
 
     new_content.strip! if new_content.is_a?(String)
 
@@ -228,7 +229,7 @@ class Cell
     new_references = []
 
     if new_content.is_a?(String)
-      uppercased_content = new_content.gsub(/(#{CellRef::CELL_REF})/i) { $1.upcase }
+      uppercased_content = new_content.gsub(/(#{CellCoordinate::CELL_COORD})/i) { $1.upcase }
 
       @raw_content, @content = uppercased_content, uppercased_content.clone
     else
@@ -237,9 +238,9 @@ class Cell
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @content[1..-1].scan(CellRef::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_ref, lower_right_ref)|
+      @content[1..-1].scan(CellCoordinate::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_coord, lower_right_coord)|
         @content.gsub!  /(?<![A-Z])#{range}(?![1-9])/i,
-                        '[' + CellRef.splat_range(upper_left_ref, lower_right_ref).map { |row|
+                        '[' + CellCoordinate.splat_range(upper_left_coord, lower_right_coord).map { |row|
                           '[' + row.map(&:to_s).join(', ') + ']'
                         }.join(', ') + ']'
       end
@@ -269,14 +270,13 @@ class Cell
   end
 
   def find_references
-    if formula?
-      content[1..-1].scan(CellRef::CELL_REF_REG_EXP).map { |ref|
-        cell = spreadsheet.find_or_create_cell(ref)
+    return [] unless formula?
 
-        CellWrapper.new cell, ref
-      }.uniq
-    else
-      []
+    content[1..-1].scan(CellCoordinate::CELL_COORD_REG_EXP).inject [] do |memo, coord|
+      cell           = spreadsheet.find_or_create_cell(coord)
+      cell_reference = CellReference.new cell, coord
+
+      memo.unique_add cell_reference
     end
   end
 
@@ -287,7 +287,7 @@ class Cell
 
     @evaluated_content ||=
       if formula?
-        log ">>> Calculating formula for #{ref}" if DEBUG
+        log ">>> Calculating formula for #{coord}" if DEBUG
 
         @last_evaluated_at = Time.now
 
@@ -296,9 +296,11 @@ class Cell
         references.each do |reference|
           # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
           # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_ref)}(?![1-9])/i, reference.eval.to_s
+          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_coord)}(?![1-9])/i, reference.eval.to_s
         end
 
+        # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
+        # Formula's (singleton) methods.
         Formula.instance_eval { eval evaluated_content }
       else
         content
@@ -313,7 +315,7 @@ class Cell
   def reset_circular_reference_check_cache
     return unless @directly_or_indirectly_references
 
-    log "Resetting circular reference check cache for #{ref}" if DEBUG
+    log "Resetting circular reference check cache for #{coord}" if DEBUG
 
     @directly_or_indirectly_references = nil
 
@@ -325,7 +327,7 @@ class Cell
   end
 
   def directly_or_indirectly_references?(cell)
-    log "Checking if #{cell.ref} directly or indirectly references #{ref}" if DEBUG
+    log "Checking if #{cell.coord} directly or indirectly references #{coord}" if DEBUG
 
     @directly_or_indirectly_references ||= {}
 
@@ -340,67 +342,71 @@ class Cell
   end
 
   def copy_to_range(dest_range)
-    CellRef.splat_range(*dest_range.split(':')).flatten.each do |ref|
-      copy_to ref
+    CellCoordinate.splat_range(*dest_range.split(':')).flatten.each do |coord|
+      copy_to coord
     end
   end
 
-  def copy_to(dest_ref)
-    dest_ref = CellRef.self_or_new(dest_ref)
+  def copy_to(dest_coord)
+    dest_coord = CellCoordinate.self_or_new(dest_coord)
 
-    return if dest_ref == ref
+    return if dest_coord == coord
 
-    dest_content = raw_content.clone
+    if raw_content.is_a?(String)
+      dest_content = raw_content.clone
 
-    log "Content before replacements in copy_to: #{dest_content}" if DEBUG
+      log "Content before replacements in copy_to: #{dest_content}" if DEBUG
 
-    dest_content.gsub! CellRef::CELL_REF_WITH_PARENS_REG_EXP do |content_ref|
-      if (cell = references.find { |reference| reference == content_ref })
-        cell.new_ref ref, dest_ref
+      dest_content.gsub! CellCoordinate::CELL_COORD_WITH_PARENS_REG_EXP do |content_coord|
+        if (cell = references.find { |reference| reference == content_coord })
+          cell.new_coord coord, dest_coord
+        end
       end
+
+      log "Content after replacements in copy_to: #{dest_content}" if DEBUG
+    else
+      dest_content = raw_content
     end
 
-    log "Content after replacements in copy_to: #{dest_content}" if DEBUG
-
-    spreadsheet.set dest_ref, dest_content
+    spreadsheet.set dest_coord, dest_content
   end
 
-  def move_to!(dest_ref)
-    dest_ref = CellRef.self_or_new(dest_ref)
+  def move_to!(dest_coord)
+    dest_coord = CellCoordinate.self_or_new(dest_coord)
 
-    return if dest_ref == ref
+    return if dest_coord == coord
 
-    source_ref = ref
-    @ref       = dest_ref
+    source_coord = coord
+    @coord       = dest_coord
 
-    spreadsheet.move_cell source_ref, dest_ref
+    spreadsheet.move_cell source_coord, dest_coord
 
     observers.each do |observer|
-      observer.update_reference source_ref, dest_ref
+      observer.update_reference source_coord, dest_coord
     end
   end
 
   def move_right!(col_count = 1)
-    move_to! ref.right_neighbor(col_count)
+    move_to! coord.right_neighbor(col_count)
   end
 
   def move_left!(col_count = 1)
-    move_to! ref.left_neighbor(col_count)
+    move_to! coord.left_neighbor(col_count)
   end
 
   def move_down!(row_count = 1)
-    move_to! ref.lower_neighbor(row_count)
+    move_to! coord.lower_neighbor(row_count)
   end
 
   def move_up!(row_count = 1)
-    move_to! ref.upper_neighbor(row_count)
+    move_to! coord.upper_neighbor(row_count)
   end
 
-  def update_reference(old_ref, new_ref)
-    log "Replacing reference `#{old_ref}` with `#{new_ref}` in #{ref}" if DEBUG
+  def update_reference(old_coord, new_coord)
+    log "Replacing reference `#{old_coord}` with `#{new_coord}` in #{coord}" if DEBUG
 
-    old_col, old_row = CellRef.parse_ref(old_ref)
-    new_col, new_row = CellRef.parse_ref(new_ref)
+    old_col, old_row = CellCoordinate.parse_coord(old_coord)
+    new_col, new_row = CellCoordinate.parse_coord(new_coord)
 
     # Do not use gsub! (since the setter won't be called).
     self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![1-9])/i) { [$1, new_col, $2, new_row].join }
@@ -410,9 +416,9 @@ class Cell
     content.is_a?(String) && content[0] == '='
   end
 
-  def ==(another_cell_or_cell_wrapper)
-    if another_cell_or_cell_wrapper.is_a?(CellWrapper)
-      self == another_cell_or_cell_wrapper.cell
+  def ==(another_cell_or_cell_reference)
+    if another_cell_or_cell_reference.is_a?(CellReference)
+      self == another_cell_or_cell_reference.cell
     else
       super
     end
@@ -421,7 +427,7 @@ class Cell
   def inspect
     {
       spreadsheet: spreadsheet.object_id,
-      ref:         ref.ref,
+      coord:       coord.coord,
       references:  references,
       observers:   observers
     }
@@ -430,7 +436,7 @@ class Cell
   private
 
   def fire_observers
-    log "Firing #{ref}'s observers" if DEBUG && observers.any?
+    log "Firing #{coord}'s observers" if DEBUG && observers.any?
 
     observers.each do |observer|
       observer.eval true
@@ -439,10 +445,10 @@ class Cell
 
   def add_reference(reference)
     if reference.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.ref} to #{ref}"
+      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.coord} to #{coord}"
     end
 
-    log "Adding reference #{reference.ref} to #{ref}" if DEBUG
+    log "Adding reference #{reference.coord} to #{coord}" if DEBUG
 
     references.unique_add reference
     reference.add_observer self
@@ -455,10 +461,10 @@ class Cell
   end
 
   def remove_reference(reference)
-    log "Removing reference #{reference.ref} from #{ref}" if DEBUG
+    log "Removing reference #{reference.coord} from #{coord}" if DEBUG
 
     references.delete reference
-    reference.remove_observer(self) unless references.any? { |ref| ref.cell == reference.cell }
+    reference.remove_observer(self) unless references.any? { |coord| coord.cell == reference.cell }
   end
 
   def add_references(new_references)
@@ -474,15 +480,15 @@ class Cell
   end
 end
 
-class CellWrapper
+class CellReference
   attr_reader :cell
 
   # The code below could also re written as: `delegate_all to: :cell`, which would be more generic but a little slower (due to the use of
   # the :method_missing method).
-  delegate :directly_or_indirectly_references?, :ref, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, to: :cell
+  delegate :directly_or_indirectly_references?, :coord, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, to: :cell
 
-  def initialize(cell, ref)
-    raise IllegalCellReference unless ref.to_s =~ CellRef::CELL_REF_WITH_PARENS_REG_EXP
+  def initialize(cell, coord)
+    raise IllegalCellReference unless coord.to_s =~ CellCoordinate::CELL_COORD_WITH_PARENS_REG_EXP
 
     @cell            = cell
     @is_absolute_col = $1 == '$'
@@ -497,44 +503,44 @@ class CellWrapper
     @is_absolute_row
   end
 
-  def full_ref
-    col, row = cell.ref.col_and_row
+  def full_coord
+    col, row = cell.coord.col_and_row
 
-    ref_parts = []
-    ref_parts << '$' if absolute_col?
-    ref_parts << col
-    ref_parts << '$' if absolute_row?
-    ref_parts << row
+    coord_parts = []
+    coord_parts << '$' if absolute_col?
+    coord_parts << col
+    coord_parts << '$' if absolute_row?
+    coord_parts << row
 
-    ref_parts.join
+    coord_parts.join
   end
 
-  # Calculates a cell's new reference when an observer cell is copied from `observer_source_ref` to `observer_dest_ref`.
-  def new_ref(observer_source_ref, observer_dest_ref)
-    col_diff = absolute_col? ? 0 : observer_dest_ref.col_index  - observer_source_ref.col_index
-    row_diff = absolute_row? ? 0 : observer_dest_ref.row        - observer_source_ref.row
+  # Calculates a cell's new reference when an observer cell is copied from `observer_source_coord` to `observer_dest_coord`.
+  def new_coord(observer_source_coord, observer_dest_coord)
+    col_diff = absolute_col? ? 0 : observer_dest_coord.col_index  - observer_source_coord.col_index
+    row_diff = absolute_row? ? 0 : observer_dest_coord.row        - observer_source_coord.row
 
-    target_ref = ref.right_neighbor(col_diff).lower_neighbor(row_diff)
+    target_coord = coord.right_neighbor(col_diff).lower_neighbor(row_diff)
 
-    ref_parts = []
-    ref_parts << '$' if absolute_col?
-    ref_parts << target_ref.col
-    ref_parts << '$' if absolute_row?
-    ref_parts << target_ref.row
+    coord_parts = []
+    coord_parts << '$' if absolute_col?
+    coord_parts << target_coord.col
+    coord_parts << '$' if absolute_row?
+    coord_parts << target_coord.row
 
-    ref_parts.join
+    coord_parts.join
   end
 
-  def ==(another_cell_or_cell_wrapper)
-    case another_cell_or_cell_wrapper
-    when CellWrapper then
-      cell == another_cell_or_cell_wrapper.cell &&
-        absolute_col? == another_cell_or_cell_wrapper.absolute_col? &&
-        absolute_row? == another_cell_or_cell_wrapper.absolute_row?
+  def ==(another_cell_or_cell_reference)
+    case another_cell_or_cell_reference
+    when CellReference then
+      cell == another_cell_or_cell_reference.cell &&
+        absolute_col? == another_cell_or_cell_reference.absolute_col? &&
+        absolute_row? == another_cell_or_cell_reference.absolute_row?
     when Cell then
-      cell == another_cell_or_cell_wrapper
+      cell == another_cell_or_cell_reference
     when String, Symbol then
-      full_ref == another_cell_or_cell_wrapper.to_s.upcase
+      full_coord == another_cell_or_cell_reference.to_s.upcase
     else
       false
     end
@@ -547,9 +553,9 @@ class CellWrapper
   #   when String, Symbol then
   #     # cell = spreadsheet.find_or_create_cell(any_object)
   #     #
-  #     # [CellWrapper.new(cell, any_object), self]
+  #     # [CellReference.new(cell, any_object), self]
   #
-  #     [any_object.to_s.upcase, full_ref]
+  #     [any_object.to_s.upcase, full_coord]
   #   else
   #     super
   #   end
@@ -586,33 +592,33 @@ class Spreadsheet
     cells[:all].values.compact.size
   end
 
-  def find_or_create_cell(ref, content = nil)
-    (find_cell_ref(ref) || add_cell(ref)).tap do |cell|
+  def find_or_create_cell(coord, content = nil)
+    (find_cell_coord(coord) || add_cell(coord)).tap do |cell|
       cell.content = content if content
     end
   end
 
-  def set(ref, content)
-    find_or_create_cell ref, content
+  def set(coord, content)
+    find_or_create_cell coord, content
   end
 
-  def add_cell(ref, content = nil)
-    raise AlreadyExistentCellError, "Cell #{ref} already exists" if find_cell_ref(ref)
+  def add_cell(coord, content = nil)
+    raise AlreadyExistentCellError, "Cell #{coord} already exists" if find_cell_coord(coord)
 
-    Cell.new(self, ref, content).tap do |cell|
-      update_cell_ref ref, cell
+    Cell.new(self, coord, content).tap do |cell|
+      update_cell_coord coord, cell
     end
   end
 
-  def move_cell(old_ref, new_ref)
-    cell = find_cell_ref(old_ref)
+  def move_cell(old_coord, new_coord)
+    cell = find_cell_coord(old_coord)
 
-    delete_cell_ref old_ref
-    update_cell_ref new_ref, cell
+    delete_cell_coord old_coord
+    update_cell_coord new_coord, cell
   end
 
   def add_col(col_to_add, count = 1)
-    col_to_add = CellRef.col_ref_index(col_to_add) unless col_to_add.is_a?(Fixnum)
+    col_to_add = CellCoordinate.col_coord_index(col_to_add) unless col_to_add.is_a?(Fixnum)
 
     cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each { |(_, cell)| cell.move_right! count }
@@ -620,9 +626,9 @@ class Spreadsheet
   end
 
   def delete_col(col_to_delete, count = 1)
-    col_to_delete = CellRef.col_ref_index(col_to_delete) unless col_to_delete.is_a?(Fixnum)
+    col_to_delete = CellCoordinate.col_coord_index(col_to_delete) unless col_to_delete.is_a?(Fixnum)
 
-    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_ref cell.ref } if cells[:by_col][col_to_delete]
+    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_coord cell.coord } if cells[:by_col][col_to_delete]
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each { |(_, cell)| cell.move_left! count }
@@ -636,7 +642,7 @@ class Spreadsheet
   end
 
   def delete_row(row_to_delete, count = 1)
-    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_ref cell.ref } if cells[:by_row][row_to_delete]
+    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_coord cell.coord } if cells[:by_row][row_to_delete]
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each { |(_, cell)| cell.move_up! count }
@@ -644,8 +650,8 @@ class Spreadsheet
   end
 
   def move_col(source_col, dest_col, count = 1)
-    source_col = CellRef.col_ref_index(source_col)  unless source_col.is_a?(Fixnum)
-    dest_col   = CellRef.col_ref_index(dest_col)    unless dest_col.is_a?(Fixnum)
+    source_col = CellCoordinate.col_coord_index(source_col)  unless source_col.is_a?(Fixnum)
+    dest_col   = CellCoordinate.col_coord_index(dest_col)    unless dest_col.is_a?(Fixnum)
 
     if dest_col >= source_col
       return if dest_col - (source_col + count - 1) <= 1
@@ -694,14 +700,33 @@ class Spreadsheet
     end
   end
 
+  def copy_col(source_col, dest_col, count = 1)
+    source_col = CellCoordinate.col_coord_index(source_col)  unless source_col.is_a?(Fixnum)
+    dest_col   = CellCoordinate.col_coord_index(dest_col)    unless dest_col.is_a?(Fixnum)
+
+    cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+      rows.sort.each do |(_, cell)|
+        cell.copy_to cell.coord.right_neighbor(dest_col - source_col)
+      end
+    end
+  end
+
+  def copy_row(source_row, dest_row, count = 1)
+    source_row = CellCoordinate.row_coord_index(source_row)  unless source_row.is_a?(Fixnum)
+    dest_row   = CellCoordinate.row_coord_index(dest_row)    unless dest_row.is_a?(Fixnum)
+
+    cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+      cols.sort.each do |(_, cell)|
+        cell.copy_to cell.coord.lower_neighbor(dest_row - source_row)
+      end
+    end
+  end
+
   def consistent?
     cells[:all].all? do |(_, cell)|
       consistent =
         if cell.formula?
-          cell_references = cell.find_references.inject [] do |memo, reference|
-            memo.unique_add reference
-            memo
-          end
+          cell_references = cell.find_references
 
           cell_references == cell.references && cell.references.all? do |reference|
             reference.observers.include? cell
@@ -718,8 +743,8 @@ class Spreadsheet
 
       next false unless consistent
 
-      col = cell.ref.col_index
-      row = cell.ref.row
+      col = cell.coord.col_index
+      row = cell.coord.row
 
       consistent =
         cells[:by_col][col] && cells[:by_col][col][row] == cell &&
@@ -749,7 +774,7 @@ class Spreadsheet
       print ' '
       print ' ' * PP_ROW_REF_SIZE
       puts (1..max_col).map { |col|
-        CellRef.col_ref_name(col).to_s.rjust(index = PP_CELL_SIZE / 2 + 1) + ' ' *  (PP_CELL_SIZE - index)
+        CellCoordinate.col_coord_name(col).to_s.rjust(index = PP_CELL_SIZE / 2 + 1) + ' ' *  (PP_CELL_SIZE - index)
       }.join(PP_COL_DELIMITER)
 
       print ' '
@@ -829,12 +854,12 @@ class Spreadsheet
       value
     end
 
-    read_cell_ref = -> (message = 'Enter cell reference: ') do
-      ref = read_value.call(message, /^#{CellRef::CELL_REF}$/i)
+    read_cell_coord = -> (message = 'Enter cell reference: ') do
+      coord = read_value.call(message, /^#{CellCoordinate::CELL_COORD}$/i)
     end
 
     read_cell_range = -> (message = 'Enter cell range: ') do
-      ref = read_value.call(message, /^#{CellRef::CELL_RANGE}$/i)
+      coord = read_value.call(message, /^#{CellCoordinate::CELL_RANGE}$/i)
     end
 
     read_number = -> (message, default_value = nil) do
@@ -846,24 +871,24 @@ class Spreadsheet
 
     loop do
       begin
-        ref = nil
+        coord = nil
 
         pp last_change
 
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; CC - Copy cell to cell; CR - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; Q - Quit]: ",
-          ['S', 'M', 'CC', 'CR', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; CN - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; CC - Copy col; CR - Copy row; Q - Quit]: ",
+          ['S', 'M', 'C', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'Q'],
           'S'
         )
 
         case action.upcase
         when 'S' then
-          ref     = read_cell_ref.call
+          coord     = read_cell_coord.call
           content = read_value.call("Enter content (for formulas start with a '='): ")
 
-          set ref, content
+          set coord, content
 
         when 'M' then
           subaction = read_value.call(
@@ -872,13 +897,13 @@ class Spreadsheet
             'S'
           )
 
-          ref = read_cell_ref.call('Select source reference: ')
+          coord = read_cell_coord.call('Select source reference: ')
 
-          cell = find_or_create_cell(ref)
+          cell = find_or_create_cell(coord)
 
           case subaction.upcase
           when 'S' then
-            cell.move_to! read_cell_ref.call('Select destination reference: ')
+            cell.move_to! read_cell_coord.call('Select destination reference: ')
           when 'U' then
             cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
           when 'D' then
@@ -889,16 +914,16 @@ class Spreadsheet
             cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
           end
 
-        when 'CC' then
-          ref      = read_cell_ref.call('Select source reference: ')
-          cell     = find_or_create_cell(ref)
-          dest_ref = read_cell_ref.call('Select destination reference: ')
+        when 'C' then
+          coord      = read_cell_coord.call('Select source reference: ')
+          cell     = find_or_create_cell(coord)
+          dest_coord = read_cell_coord.call('Select destination reference: ')
 
-          cell.copy_to dest_ref
+          cell.copy_to dest_coord
 
-        when 'CR' then
-          ref        = read_cell_ref.call('Select source reference: ')
-          cell       = find_or_create_cell(ref)
+        when 'CN' then
+          coord        = read_cell_coord.call('Select source reference: ')
+          cell       = find_or_create_cell(coord)
           dest_range = read_cell_range.call('Select destination range: ')
 
           cell.copy_to_range dest_range
@@ -941,6 +966,20 @@ class Spreadsheet
 
           move_row source_row, dest_row, row_count
 
+        when 'CC' then
+          source_col = read_value.call('Enter source col name (>= "A"): ', 'A'..'ZZZ')
+          dest_col   = read_value.call('Enter destination col name (>= "A"): ', 'A'..'ZZZ')
+          col_count  = read_number.call('Enter # of cols (default: 1): ', 1)
+
+          copy_col source_col, dest_col, col_count
+
+        when 'CR' then
+          source_row = read_number.call('Enter source row: ')
+          dest_row   = read_number.call('Enter destination row: ')
+          row_count  = read_number.call('Enter # of rows (default: 1): ', 1)
+
+          copy_row source_row, dest_row, row_count
+
         when 'Q' then
           break;
 
@@ -960,36 +999,36 @@ class Spreadsheet
 
   private
 
-  def find_cell_ref(ref)
-    ref = CellRef.self_or_new(ref)
+  def find_cell_coord(coord)
+    coord = CellCoordinate.self_or_new(coord)
 
-    cells[:all][ref.ref]
+    cells[:all][coord.coord]
   end
 
-  def delete_cell_ref(ref)
-    ref = CellRef.self_or_new(ref)
+  def delete_cell_coord(coord)
+    coord = CellCoordinate.self_or_new(coord)
 
-    col = ref.col_index
-    row = ref.row
+    col = coord.col_index
+    row = coord.row
 
     cells[:by_col][col] ||= {}
     cells[:by_row][row] ||= {}
 
-    cells[:all].delete ref.ref
+    cells[:all].delete coord.coord
     cells[:by_col][col].delete row
     cells[:by_row][row].delete col
   end
 
-  def update_cell_ref(ref, cell)
-    ref = CellRef.self_or_new(ref)
+  def update_cell_coord(coord, cell)
+    coord = CellCoordinate.self_or_new(coord)
 
-    col = ref.col_index
-    row = ref.row
+    col = coord.col_index
+    row = coord.row
 
     cells[:by_col][col] ||= {}
     cells[:by_row][row] ||= {}
 
-    cells[:all][ref.ref] = cells[:by_col][col][row] = cells[:by_row][row][col] = cell
+    cells[:all][coord.coord] = cells[:by_col][col][row] = cells[:by_row][row][col] = cell
   end
 end
 
