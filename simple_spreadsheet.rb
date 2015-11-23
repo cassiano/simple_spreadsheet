@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = false
+  DEBUG = true
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -191,17 +191,18 @@ class Cell
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
 
-  attr_reader :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at
+  attr_reader :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at, :max_reference_timestamp
 
   def initialize(spreadsheet, coord, content = nil)
     log "Creating cell #{coord}"
 
     coord = CellCoordinate.self_or_new(coord)
 
-    @spreadsheet = spreadsheet
-    @coord       = coord
-    @references  = []
-    @observers   = []
+    @spreadsheet             = spreadsheet
+    @coord                   = coord
+    @references              = []
+    @observers               = []
+    @max_reference_timestamp = nil
 
     self.content = content
   end
@@ -289,9 +290,7 @@ class Cell
 
     if reevaluate
       if formula?
-        latest_evaluated_reference_timestamp = references.map(&:last_evaluated_at).compact.max
-
-        if latest_evaluated_reference_timestamp && last_evaluated_at && last_evaluated_at >= latest_evaluated_reference_timestamp
+        if max_reference_timestamp && last_evaluated_at && last_evaluated_at >= max_reference_timestamp
           log "Skipping reevaluation for #{coord}"
         else
           @evaluated_content = nil
@@ -472,9 +471,15 @@ class Cell
 
     references.unique_add reference
     reference.add_observer self
+
+    if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
+      @max_reference_timestamp = reference.last_evaluated_at
+    end
   end
 
   def remove_all_references
+    @max_reference_timestamp = nil
+
     references.each do |reference|
       remove_reference reference
     end
@@ -485,6 +490,10 @@ class Cell
 
     references.delete reference
     reference.remove_observer(self) unless references.any? { |coord| coord.cell == reference.cell }
+
+    if reference.last_evaluated_at && max_reference_timestamp && reference.last_evaluated_at == max_reference_timestamp
+      @max_reference_timestamp = find_max_reference_timestamp
+    end
   end
 
   def add_references(new_references)
@@ -497,6 +506,10 @@ class Cell
     old_references.each do |reference|
       remove_reference reference
     end
+  end
+
+  def find_max_reference_timestamp
+    references.map(&:last_evaluated_at).compact.max
   end
 end
 
@@ -591,7 +604,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 100
+  PP_CELL_SIZE     = 30
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -1093,8 +1106,8 @@ def run!
   # Case with performance problems.
   a1 = spreadsheet.set(:A1, 1)
   a2 = spreadsheet.set(:A2, '=A1+1')
-  a2.copy_to_range 'A3:A1000'
-  spreadsheet.set(:A1001, '=sum(A1:A1000)')
+  a2.copy_to_range 'A3:A10'
+  spreadsheet.set(:A11, '=sum(A1:A10)')
 
   spreadsheet.repl
 end

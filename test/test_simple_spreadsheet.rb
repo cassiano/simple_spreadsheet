@@ -1156,7 +1156,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 1 + 2 + 4 + 8 + 16 + 32 + 64 + 128 + 256, a4.eval
       end
 
-      test 'changes in references are automatically coordlected in dependent cells' do
+      test 'changes in references are automatically reflected in dependent cells' do
         a1 = @spreadsheet.set(:A1, 1)
         a2 = @spreadsheet.set(:A2, 2)
         a3 = @spreadsheet.set(:A3, '= (A1 + A2) * 3')
@@ -1166,7 +1166,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal (10 + 20) * 3, a3.eval
       end
 
-      test 'changes in references are automatically coordlected in dependent cells, even if within a range' do
+      test 'changes in references are automatically reflected in dependent cells, even if within a range' do
         a1 = @spreadsheet.set(:A1, 1)
         a2 = @spreadsheet.set(:A2, 2)
         a3 = @spreadsheet.set(:A3, 4)
