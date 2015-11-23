@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = true
+  DEBUG = false
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -236,6 +236,8 @@ class Cell
       @raw_content, @content = new_content, new_content
     end
 
+    @last_evaluated_at = nil    # Assume it was never evaluated before, since its contents have effectively changed.
+
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellCoordinate::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_coord, lower_right_coord)|
@@ -285,28 +287,44 @@ class Cell
   def eval(reevaluate = false)
     previous_content = @evaluated_content
 
-    @evaluated_content = nil if reevaluate
-
-    @evaluated_content ||=
+    if reevaluate
       if formula?
-        log ">>> Calculating formula for #{coord}"
+        latest_evaluated_reference_timestamp = references.map(&:last_evaluated_at).compact.max
 
-        @last_evaluated_at = Time.now
+        if latest_evaluated_reference_timestamp && last_evaluated_at && last_evaluated_at >= latest_evaluated_reference_timestamp
+          log "Skipping reevaluation for #{coord}"
+        else
+          @evaluated_content = nil
+        end
+      else
+        @evaluated_content = nil
+      end
+    end
 
-        evaluated_content = content[1..-1]
+    @evaluated_content ||= begin
+      new_evaluated_content =
+        if formula?
+          log ">>> Calculating formula for #{coord}"
 
-        references.each do |reference|
-          # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
-          # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_coord)}(?![0-9])/i, reference.eval.to_s
+          evaluated_content = content[1..-1]
+
+          references.each do |reference|
+            # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
+            # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
+            evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_coord)}(?![0-9])/i, reference.eval.to_s
+          end
+
+          # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
+          # Formula's (singleton) methods.
+          Formula.instance_eval { eval evaluated_content }
+        else
+          content
         end
 
-        # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
-        # Formula's (singleton) methods.
-        Formula.instance_eval { eval evaluated_content }
-      else
-        content
-      end
+      @last_evaluated_at = Time.now
+
+      new_evaluated_content
+    end
 
     # Fire all observers if evaluated content has changed.
     fire_observers if previous_content != @evaluated_content
@@ -487,7 +505,7 @@ class CellReference
 
   # The code below could also re written as: `delegate_all to: :cell`, which would be more generic but a little slower (due to the use of
   # the :method_missing method).
-  delegate :directly_or_indirectly_references?, :coord, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, to: :cell
+  delegate :directly_or_indirectly_references?, :coord, :eval, :observers, :add_observer, :remove_observer, :spreadsheet, :last_evaluated_at, to: :cell
 
   def initialize(cell, coord)
     raise IllegalCellReference unless coord.to_s =~ CellCoordinate::CELL_COORD_WITH_PARENS_REG_EXP
@@ -573,7 +591,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 30
+  PP_CELL_SIZE     = 100
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -1053,30 +1071,30 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # Fibonacci sequence.
-  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  a3 = spreadsheet.set(:A3, 1)
-  a4 = spreadsheet.set(:A4, '=A3+1')
-  a4.copy_to_range 'A5:A20'
-  b3 = spreadsheet.set(:B3, 1)
-  b4 = spreadsheet.set(:B4, 1)
-  b5 = spreadsheet.set(:B5, '=B3+B4')
-  b5.copy_to_range 'B6:B20'
+  # # Fibonacci sequence.
+  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  # a3 = spreadsheet.set(:A3, 1)
+  # a4 = spreadsheet.set(:A4, '=A3+1')
+  # a4.copy_to_range 'A5:A20'
+  # b3 = spreadsheet.set(:B3, 1)
+  # b4 = spreadsheet.set(:B4, 1)
+  # b5 = spreadsheet.set(:B5, '=B3+B4')
+  # b5.copy_to_range 'B6:B20'
+  #
+  # # Factorials.
+  # e1 = spreadsheet.set(:E1, 'Factorials:')
+  # d3 = spreadsheet.set(:D3, 1)
+  # e3 = spreadsheet.set(:E3, '=D3')
+  # d4 = spreadsheet.set(:D4, '=D3+1')
+  # e4 = spreadsheet.set(:E4, '=D4*E3')
+  # d4.copy_to_range 'D5:D20'
+  # e4.copy_to_range 'E5:E20'
 
-  # Factorials.
-  e1 = spreadsheet.set(:E1, 'Factorials:')
-  d3 = spreadsheet.set(:D3, 1)
-  e3 = spreadsheet.set(:E3, '=D3')
-  d4 = spreadsheet.set(:D4, '=D3+1')
-  e4 = spreadsheet.set(:E4, '=D4*E3')
-  d4.copy_to_range 'D5:D20'
-  e4.copy_to_range 'E5:E20'
-
-  # # Case with performance problems.
-  # a1 = spreadsheet.set(:A1, 1)
-  # a2 = spreadsheet.set(:A2, '=A1+1')
-  # a2.copy_to_range 'A3:A300'
-  # spreadsheet.set(:A301, '=sum(A1:A300)')
+  # Case with performance problems.
+  a1 = spreadsheet.set(:A1, 1)
+  a2 = spreadsheet.set(:A2, '=A1+1')
+  a2.copy_to_range 'A3:A1000'
+  spreadsheet.set(:A1001, '=sum(A1:A1000)')
 
   spreadsheet.repl
 end
