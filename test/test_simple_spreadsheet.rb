@@ -295,7 +295,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         [ Cell::DEFAULT_VALUE,  :D1 ],
         [ Cell::DEFAULT_VALUE,  :D2 ]
       ].each do |value, coord|
-        assert_equal value,  @spreadsheet.find_or_create_cell(coord).eval
+        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
       end
     end
 
@@ -316,7 +316,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         [ Cell::DEFAULT_VALUE,  :C1 ],
         [ Cell::DEFAULT_VALUE,  :C2 ]
       ].each do |value, coord|
-        assert_equal value,  @spreadsheet.find_or_create_cell(coord).eval
+        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
       end
     end
 
@@ -338,7 +338,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         [Cell::DEFAULT_VALUE,  :A4],
         [Cell::DEFAULT_VALUE,  :B4]
       ].each do |value, coord|
-        assert_equal value,  @spreadsheet.find_or_create_cell(coord).eval
+        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
       end
     end
 
@@ -370,6 +370,568 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
 
     test '#consistent?' do
+    end
+
+    context '#move_col' do
+      context 'moves forward' do
+        test '1 column (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+
+          @spreadsheet.move_col :A, :C
+
+          [
+            [ 4, :A1 ],
+            [ 5, :A2 ],
+            [ 6, :A3 ],
+            [ 1, :B1 ],
+            [ 2, :B2 ],
+            [ 3, :B3 ],
+            [ 7, :C1 ],
+            [ 8, :C2 ],
+            [ 9, :C3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many columns' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+
+          @spreadsheet.move_col :A, :D, 2
+
+          [
+            [ 7, :A1 ],
+            [ 8, :A2 ],
+            [ 9, :A3 ],
+            [ 1, :B1 ],
+            [ 2, :B2 ],
+            [ 3, :B3 ],
+            [ 4, :C1 ],
+            [ 5, :C2 ],
+            [ 6, :C3 ],
+            [ 10, :D1 ],
+            [ 11, :D2 ],
+            [ 12, :D3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+
+      context 'moves backwards' do
+        test '1 column (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+
+          @spreadsheet.move_col :C, :A
+
+          [
+            [ 7, :A1 ],
+            [ 8, :A2 ],
+            [ 9, :A3 ],
+            [ 1, :B1 ],
+            [ 2, :B2 ],
+            [ 3, :B3 ],
+            [ 4, :C1 ],
+            [ 5, :C2 ],
+            [ 6, :C3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many columns' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+
+          @spreadsheet.move_col :C, :A, 2
+
+          [
+            [ 7, :A1 ],
+            [ 8, :A2 ],
+            [ 9, :A3 ],
+            [ 10, :B1 ],
+            [ 11, :B2 ],
+            [ 12, :B3 ],
+            [ 1, :C1 ],
+            [ 2, :C2 ],
+            [ 3, :C3 ],
+            [ 4, :D1 ],
+            [ 5, :D2 ],
+            [ 6, :D3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+    end
+
+    context '#move_row' do
+      context 'moves forward' do
+        test '1 row (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+
+          @spreadsheet.move_row 1, 3
+
+          [
+            [ 4, :A1 ],
+            [ 5, :B1 ],
+            [ 6, :C1 ],
+            [ 1, :A2 ],
+            [ 2, :B2 ],
+            [ 3, :C2 ],
+            [ 7, :A3 ],
+            [ 8, :B3 ],
+            [ 9, :C3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many rows' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:A4, 10)
+          @spreadsheet.set(:B4, 11)
+          @spreadsheet.set(:C4, 12)
+
+          @spreadsheet.move_row 1, 4, 2
+
+          [
+            [ 7, :A1 ],
+            [ 8, :B1 ],
+            [ 9, :C1 ],
+            [ 1, :A2 ],
+            [ 2, :B2 ],
+            [ 3, :C2 ],
+            [ 4, :A3 ],
+            [ 5, :B3 ],
+            [ 6, :C3 ],
+            [ 10, :A4 ],
+            [ 11, :B4 ],
+            [ 12, :C4 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+
+      context 'moves backwards' do
+        test '1 row (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+
+          @spreadsheet.move_row 3, 1
+
+          [
+            [ 7, :A1 ],
+            [ 8, :B1 ],
+            [ 9, :C1 ],
+            [ 1, :A2 ],
+            [ 2, :B2 ],
+            [ 3, :C2 ],
+            [ 4, :A3 ],
+            [ 5, :B3 ],
+            [ 6, :C3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many rows' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:A4, 10)
+          @spreadsheet.set(:B4, 11)
+          @spreadsheet.set(:C4, 12)
+
+          @spreadsheet.move_row 3, 1, 2
+
+          [
+            [ 7, :A1 ],
+            [ 8, :B1 ],
+            [ 9, :C1 ],
+            [ 10, :A2 ],
+            [ 11, :B2 ],
+            [ 12, :C2 ],
+            [ 1, :A3 ],
+            [ 2, :B3 ],
+            [ 3, :C3 ],
+            [ 4, :A4 ],
+            [ 5, :B4 ],
+            [ 6, :C4 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+    end
+
+    context '#copy_col' do
+      context 'copies forward' do
+        test '1 column (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+
+          @spreadsheet.copy_col :A, :C
+
+          [
+            [  1, :A1 ],
+            [  2, :A2 ],
+            [  3, :A3 ],
+            [  4, :B1 ],
+            [  5, :B2 ],
+            [  6, :B3 ],
+            [  1, :C1 ],
+            [  2, :C2 ],
+            [  3, :C3 ],
+            [ 10, :D1 ],
+            [ 11, :D2 ],
+            [ 12, :D3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many columns' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+          @spreadsheet.set(:E1, 13)
+          @spreadsheet.set(:E2, 14)
+          @spreadsheet.set(:E3, 15)
+
+          @spreadsheet.copy_col :A, :C, 2
+
+          [
+            [  1, :A1 ],
+            [  2, :A2 ],
+            [  3, :A3 ],
+            [  4, :B1 ],
+            [  5, :B2 ],
+            [  6, :B3 ],
+            [  1, :C1 ],
+            [  2, :C2 ],
+            [  3, :C3 ],
+            [  4, :D1 ],
+            [  5, :D2 ],
+            [  6, :D3 ],
+            [ 13, :E1 ],
+            [ 14, :E2 ],
+            [ 15, :E3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+
+      context 'copies backwards' do
+        test '1 column (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+
+          @spreadsheet.copy_col :C, :A
+
+          [
+            [  7, :A1 ],
+            [  8, :A2 ],
+            [  9, :A3 ],
+            [  4, :B1 ],
+            [  5, :B2 ],
+            [  6, :B3 ],
+            [  7, :C1 ],
+            [  8, :C2 ],
+            [  9, :C3 ],
+            [ 10, :D1 ],
+            [ 11, :D2 ],
+            [ 12, :D3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many columns' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:A2, 2)
+          @spreadsheet.set(:A3, 3)
+          @spreadsheet.set(:B1, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:B3, 6)
+          @spreadsheet.set(:C1, 7)
+          @spreadsheet.set(:C2, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:D1, 10)
+          @spreadsheet.set(:D2, 11)
+          @spreadsheet.set(:D3, 12)
+          @spreadsheet.set(:E1, 13)
+          @spreadsheet.set(:E2, 14)
+          @spreadsheet.set(:E3, 15)
+
+          @spreadsheet.copy_col :D, :A, 2
+
+          [
+            [ 10, :A1 ],
+            [ 11, :A2 ],
+            [ 12, :A3 ],
+            [ 13, :B1 ],
+            [ 14, :B2 ],
+            [ 15, :B3 ],
+            [  7, :C1 ],
+            [  8, :C2 ],
+            [  9, :C3 ],
+            [ 10, :D1 ],
+            [ 11, :D2 ],
+            [ 12, :D3 ],
+            [ 13, :E1 ],
+            [ 14, :E2 ],
+            [ 15, :E3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+    end
+
+    context '#copy_row' do
+      context 'copies forward' do
+        test '1 row (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:A4, 10)
+          @spreadsheet.set(:B4, 11)
+          @spreadsheet.set(:C4, 12)
+
+          @spreadsheet.copy_row 1, 3
+
+          [
+            [  1, :A1 ],
+            [  2, :B1 ],
+            [  3, :C1 ],
+            [  4, :A2 ],
+            [  5, :B2 ],
+            [  6, :C2 ],
+            [  1, :A3 ],
+            [  2, :B3 ],
+            [  3, :C3 ],
+            [ 10, :A4 ],
+            [ 11, :B4 ],
+            [ 12, :C4 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many rows' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:A4, 10)
+          @spreadsheet.set(:B4, 11)
+          @spreadsheet.set(:C4, 12)
+          @spreadsheet.set(:A5, 13)
+          @spreadsheet.set(:B5, 14)
+          @spreadsheet.set(:C5, 15)
+
+          @spreadsheet.copy_row 1, 3, 2
+
+          [
+            [  1, :A1 ],
+            [  2, :B1 ],
+            [  3, :C1 ],
+            [  4, :A2 ],
+            [  5, :B2 ],
+            [  6, :C2 ],
+            [  1, :A3 ],
+            [  2, :B3 ],
+            [  3, :C3 ],
+            [  4, :A4 ],
+            [  5, :B4 ],
+            [  6, :C4 ],
+            [ 13, :A5 ],
+            [ 14, :B5 ],
+            [ 15, :C5 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
+
+      context 'copies backwards' do
+        test '1 row (default value)' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+
+          @spreadsheet.copy_row 3, 1
+
+          [
+            [ 7, :A1 ],
+            [ 8, :B1 ],
+            [ 9, :C1 ],
+            [ 4, :A2 ],
+            [ 5, :B2 ],
+            [ 6, :C2 ],
+            [ 7, :A3 ],
+            [ 8, :B3 ],
+            [ 9, :C3 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+
+        test 'many rows' do
+          @spreadsheet.set(:A1, 1)
+          @spreadsheet.set(:B1, 2)
+          @spreadsheet.set(:C1, 3)
+          @spreadsheet.set(:A2, 4)
+          @spreadsheet.set(:B2, 5)
+          @spreadsheet.set(:C2, 6)
+          @spreadsheet.set(:A3, 7)
+          @spreadsheet.set(:B3, 8)
+          @spreadsheet.set(:C3, 9)
+          @spreadsheet.set(:A4, 10)
+          @spreadsheet.set(:B4, 11)
+          @spreadsheet.set(:C4, 12)
+          @spreadsheet.set(:A5, 13)
+          @spreadsheet.set(:B5, 14)
+          @spreadsheet.set(:C5, 15)
+
+          @spreadsheet.copy_row 3, 1, 2
+
+          [
+            [  7, :A1 ],
+            [  8, :B1 ],
+            [  9, :C1 ],
+            [ 10, :A2 ],
+            [ 11, :B2 ],
+            [ 12, :C2 ],
+            [  7, :A3 ],
+            [  8, :B3 ],
+            [  9, :C3 ],
+            [ 10, :A4 ],
+            [ 11, :B4 ],
+            [ 12, :C4 ],
+            [ 13, :A5 ],
+            [ 14, :B5 ],
+            [ 15, :C5 ]
+          ].each do |value, coord|
+            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          end
+        end
+      end
     end
 
     context 'Cell' do
