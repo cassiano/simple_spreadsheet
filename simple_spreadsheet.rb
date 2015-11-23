@@ -1,10 +1,10 @@
-DEBUG = false
-
 require 'colorize'
 
 class Object
+  DEBUG = true
+
   def log(msg)
-    puts "[#{Time.now}] #{msg}"
+    puts "[#{Time.now}] #{msg}" if DEBUG
   end
 end
 
@@ -194,7 +194,7 @@ class Cell
   attr_reader :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at
 
   def initialize(spreadsheet, coord, content = nil)
-    log "Creating cell #{coord}" if DEBUG
+    log "Creating cell #{coord}"
 
     coord = CellCoordinate.self_or_new(coord)
 
@@ -207,19 +207,19 @@ class Cell
   end
 
   def add_observer(observer)
-    log "Adding observer #{observer.coord} to #{coord}" if DEBUG
+    log "Adding observer #{observer.coord} to #{coord}"
 
     observers.unique_add observer
   end
 
   def remove_observer(observer)
-    log "Removing observer #{observer.coord} from #{coord}" if DEBUG
+    log "Removing observer #{observer.coord} from #{coord}"
 
     observers.delete observer
   end
 
   def content=(new_content)
-    log "Replacing content `#{content}` with new content `#{new_content}` in cell #{coord}" if DEBUG
+    log "Replacing content `#{content}` with new content `#{new_content}` in cell #{coord}"
 
     new_content.strip! if new_content.is_a?(String)
 
@@ -246,6 +246,8 @@ class Cell
       end
 
       new_references = find_references
+
+      log "References found: #{new_references.map(&:full_coord).join(', ')}"
     end
 
     begin
@@ -287,7 +289,7 @@ class Cell
 
     @evaluated_content ||=
       if formula?
-        log ">>> Calculating formula for #{coord}" if DEBUG
+        log ">>> Calculating formula for #{coord}"
 
         @last_evaluated_at = Time.now
 
@@ -296,7 +298,7 @@ class Cell
         references.each do |reference|
           # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
           # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_coord)}(?![1-9])/i, reference.eval.to_s
+          evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_coord)}(?![0-9])/i, reference.eval.to_s
         end
 
         # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
@@ -315,7 +317,7 @@ class Cell
   def reset_circular_reference_check_cache
     return unless @directly_or_indirectly_references
 
-    log "Resetting circular reference check cache for #{coord}" if DEBUG
+    log "Resetting circular reference check cache for #{coord}"
 
     @directly_or_indirectly_references = nil
 
@@ -327,7 +329,7 @@ class Cell
   end
 
   def directly_or_indirectly_references?(cell)
-    log "Checking if #{cell.coord} directly or indirectly references #{coord}" if DEBUG
+    log "Checking if #{cell.coord} directly or indirectly references #{coord}"
 
     @directly_or_indirectly_references ||= {}
 
@@ -355,7 +357,7 @@ class Cell
     if raw_content.is_a?(String)
       dest_content = raw_content.clone
 
-      log "Content before replacements in copy_to: #{dest_content}" if DEBUG
+      log "Content before replacements in copy_to: #{dest_content}"
 
       dest_content.gsub! CellCoordinate::CELL_COORD_WITH_PARENS_REG_EXP do |content_coord|
         if (cell = references.find { |reference| reference == content_coord })
@@ -363,7 +365,7 @@ class Cell
         end
       end
 
-      log "Content after replacements in copy_to: #{dest_content}" if DEBUG
+      log "Content after replacements in copy_to: #{dest_content}"
     else
       dest_content = raw_content
     end
@@ -403,7 +405,7 @@ class Cell
   end
 
   def update_reference(old_coord, new_coord)
-    log "Replacing reference `#{old_coord}` with `#{new_coord}` in #{coord}" if DEBUG
+    log "Replacing reference `#{old_coord}` with `#{new_coord}` in #{coord}"
 
     old_col, old_row = CellCoordinate.parse_coord(old_coord)
     new_col, new_row = CellCoordinate.parse_coord(new_coord)
@@ -436,7 +438,7 @@ class Cell
   private
 
   def fire_observers
-    log "Firing #{coord}'s observers" if DEBUG && observers.any?
+    log "Firing #{coord}'s observers" if observers.any?
 
     observers.each do |observer|
       observer.eval true
@@ -448,7 +450,7 @@ class Cell
       raise CircularReferenceError, "Circular reference detected when adding reference #{reference.coord} to #{coord}"
     end
 
-    log "Adding reference #{reference.coord} to #{coord}" if DEBUG
+    log "Adding reference #{reference.coord} to #{coord}"
 
     references.unique_add reference
     reference.add_observer self
@@ -461,7 +463,7 @@ class Cell
   end
 
   def remove_reference(reference)
-    log "Removing reference #{reference.coord} from #{coord}" if DEBUG
+    log "Removing reference #{reference.coord} from #{coord}"
 
     references.delete reference
     reference.remove_observer(self) unless references.any? { |coord| coord.cell == reference.cell }
@@ -564,7 +566,7 @@ end
 
 class Formula
   def self.sum(*cell_values)
-    log "Calling sum() for #{cell_values.inspect}" if DEBUG
+    log "Calling sum() for #{cell_values.inspect}"
 
     cell_values.flatten.inject :+
   end
@@ -1004,9 +1006,9 @@ class Spreadsheet
         end
 
       rescue StandardError => e
-        log "Error: `#{e}`."
-        log 'Stack trace:'
-        log e.backtrace
+        puts "Error: `#{e}`."
+        puts 'Stack trace:'
+        puts e.backtrace
       end
 
       consistent?
@@ -1069,6 +1071,12 @@ def run!
   e4 = spreadsheet.set(:E4, '=D4*E3')
   d4.copy_to_range 'D5:D20'
   e4.copy_to_range 'E5:E20'
+
+  # # Case with performance problems.
+  # a1 = spreadsheet.set(:A1, 1)
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # a2.copy_to_range 'A3:A300'
+  # spreadsheet.set(:A301, '=sum(A1:A300)')
 
   spreadsheet.repl
 end
