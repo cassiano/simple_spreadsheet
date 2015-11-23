@@ -1052,20 +1052,23 @@ def run!
   spreadsheet = Spreadsheet.new
 
   # Fibonacci sequence.
-  a1 = spreadsheet.set(:A1, 'Fibonacci sequence:')
+  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
   a3 = spreadsheet.set(:A3, 1)
-  a4 = spreadsheet.set(:A4, 1)
-  a5 = spreadsheet.set(:A5, '=A3+A4')
-  a5.copy_to_range 'A6:A20'
+  a4 = spreadsheet.set(:A4, '=A3+1')
+  a4.copy_to_range 'A5:A20'
+  b3 = spreadsheet.set(:B3, 1)
+  b4 = spreadsheet.set(:B4, 1)
+  b5 = spreadsheet.set(:B5, '=B3+B4')
+  b5.copy_to_range 'B6:B20'
 
   # Factorials.
-  d1 = spreadsheet.set(:D1, 'Factorials:')
-  c3 = spreadsheet.set(:C3, 1)
-  d3 = spreadsheet.set(:D3, '=C3')
-  c4 = spreadsheet.set(:C4, '=C3+1')
-  d4 = spreadsheet.set(:D4, '=C4*D3')
-  c4.copy_to_range 'C5:C20'
+  e1 = spreadsheet.set(:E1, 'Factorials:')
+  d3 = spreadsheet.set(:D3, 1)
+  e3 = spreadsheet.set(:E3, '=D3')
+  d4 = spreadsheet.set(:D4, '=D3+1')
+  e4 = spreadsheet.set(:E4, '=D4*E3')
   d4.copy_to_range 'D5:D20'
+  e4.copy_to_range 'E5:E20'
 
   spreadsheet.repl
 end
