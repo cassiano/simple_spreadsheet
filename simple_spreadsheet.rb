@@ -243,7 +243,7 @@ class Cell
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @content[1..-1].scan(CellCoordinate::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_coord, lower_right_coord)|
-        @content.gsub!  /(?<![A-Z])#{range}(?![1-9])/i,
+        @content.gsub!  /(?<![A-Z])#{range}(?![0-9])/i,
                         '[' + CellCoordinate.splat_range(upper_left_coord, lower_right_coord).map { |row|
                           '[' + row.map(&:to_s).join(', ') + ']'
                         }.join(', ') + ']'
@@ -429,7 +429,7 @@ class Cell
     new_col, new_row = CellCoordinate.parse_coord(new_coord)
 
     # Do not use gsub! (since the setter won't be called).
-    self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![1-9])/i) { [$1, new_col, $2, new_row].join }
+    self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![0-9])/i) { [$1, new_col, $2, new_row].join }
   end
 
   def formula?
@@ -945,13 +945,13 @@ class Spreadsheet
           set coord, content
 
         when 'M' then
+          coord = read_cell_coord.call('Select source reference: ')
+
           subaction = read_value.call(
             'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
             ['S', 'U', 'D', 'L', 'R'],
             'S'
           )
-
-          coord = read_cell_coord.call('Select source reference: ')
 
           cell = find_or_create_cell(coord)
 
@@ -1108,8 +1108,8 @@ def run!
   # Case with performance problems.
   a1 = spreadsheet.set(:A1, 1)
   a2 = spreadsheet.set(:A2, '=A1+1')
-  a2.copy_to_range 'A3:A10'
-  spreadsheet.set(:A11, '=sum(A1:A10)')
+  a2.copy_to_range 'A3:A100'
+  spreadsheet.set(:A101, '=sum(A1:A100)')
 
   spreadsheet.repl
 end
