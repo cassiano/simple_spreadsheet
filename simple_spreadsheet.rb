@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = true
+  DEBUG = false
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -191,7 +191,8 @@ class Cell
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
 
-  attr_reader :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at, :max_reference_timestamp
+  attr_reader   :spreadsheet, :coord, :references, :observers, :content, :raw_content, :last_evaluated_at
+  attr_accessor :max_reference_timestamp
 
   def initialize(spreadsheet, coord, content = nil)
     log "Creating cell #{coord}"
@@ -458,6 +459,10 @@ class Cell
     log "Firing #{coord}'s observers" if observers.any?
 
     observers.each do |observer|
+      if last_evaluated_at && (!observer.max_reference_timestamp || last_evaluated_at > observer.max_reference_timestamp)
+        observer.max_reference_timestamp = last_evaluated_at
+      end
+
       observer.eval true
     end
   end
@@ -473,12 +478,12 @@ class Cell
     reference.add_observer self
 
     if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
-      @max_reference_timestamp = reference.last_evaluated_at
+      self.max_reference_timestamp = reference.last_evaluated_at
     end
   end
 
   def remove_all_references
-    @max_reference_timestamp = nil
+    self.max_reference_timestamp = nil
 
     references.each do |reference|
       remove_reference reference
@@ -492,7 +497,7 @@ class Cell
     reference.remove_observer(self) unless references.any? { |coord| coord.cell == reference.cell }
 
     if reference.last_evaluated_at && max_reference_timestamp && reference.last_evaluated_at == max_reference_timestamp
-      @max_reference_timestamp = find_max_reference_timestamp
+      self.max_reference_timestamp = find_max_reference_timestamp
     end
   end
 
@@ -1084,7 +1089,7 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
+  # Fibonacci sequence.
   # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
   # a3 = spreadsheet.set(:A3, 1)
   # a4 = spreadsheet.set(:A4, '=A3+1')
@@ -1095,13 +1100,10 @@ def run!
   # b5.copy_to_range 'B6:B20'
   #
   # # Factorials.
-  # e1 = spreadsheet.set(:E1, 'Factorials:')
-  # d3 = spreadsheet.set(:D3, 1)
-  # e3 = spreadsheet.set(:E3, '=D3')
-  # d4 = spreadsheet.set(:D4, '=D3+1')
-  # e4 = spreadsheet.set(:E4, '=D4*E3')
-  # d4.copy_to_range 'D5:D20'
-  # e4.copy_to_range 'E5:E20'
+  # c1 = spreadsheet.set(:C1, 'Factorials:')
+  # c3 = spreadsheet.set(:C3, 1)
+  # c4 = spreadsheet.set(:C4, '=A4*C3')
+  # c4.copy_to_range 'C5:C20'
 
   # Case with performance problems.
   a1 = spreadsheet.set(:A1, 1)
