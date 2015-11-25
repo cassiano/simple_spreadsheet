@@ -290,14 +290,10 @@ class Cell
     previous_content = @evaluated_content
 
     if reevaluate
-      if formula?
-        if max_reference_timestamp && last_evaluated_at && last_evaluated_at >= max_reference_timestamp
-          log "Skipping reevaluation for #{addr}"
-        else
-          @evaluated_content = nil
-        end
+      if !formula? || !(max_reference_timestamp && last_evaluated_at && last_evaluated_at >= max_reference_timestamp)
+        @evaluated_content = nil    # Turn cache off.
       else
-        @evaluated_content = nil
+        log "Skipping reevaluation for #{addr}"
       end
     end
 
