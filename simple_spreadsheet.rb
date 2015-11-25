@@ -610,6 +610,30 @@ class Formula
 
     cell_values.flatten.inject :+
   end
+
+  def self.count(*cell_values)
+    log "Calling count() for #{cell_values.inspect}"
+
+    cell_values.flatten.size
+  end
+
+  def self.average(*cell_values)
+    log "Calling average() for #{cell_values.inspect}"
+
+    sum(cell_values) * 1.0 / count(cell_values)
+  end
+
+  def self.max(*cell_values)
+    log "Calling max() for #{cell_values.inspect}"
+
+    cell_values.flatten.max
+  end
+
+  def self.min(*cell_values)
+    log "Calling min() for #{cell_values.inspect}"
+
+    cell_values.flatten.min
+  end
 end
 
 class Spreadsheet
