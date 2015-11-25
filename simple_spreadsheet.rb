@@ -1133,11 +1133,14 @@ def run!
   # c4 = spreadsheet.set(:C4, '=A4*C3')
   # c4.copy_to_range 'C5:C20'
 
-  # Case with performance problems.
-  a1 = spreadsheet.set(:A1, 1)
+  spreadsheet.set :A1, 1
   a2 = spreadsheet.set(:A2, '=A1+1')
   a2.copy_to_range 'A3:A100'
-  spreadsheet.set(:A101, '=sum(A1:A100)')
+  spreadsheet.set :A101, '=sum(A1:A100)'
+  spreadsheet.set :A102, '=average(A1:A100)'
+  spreadsheet.set :A103, '=count(A1:A100)'
+  spreadsheet.set :A104, '=min(A1:A100)'
+  spreadsheet.set :A105, '=max(A1:A100)'
 
   spreadsheet.repl
 end
