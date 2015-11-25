@@ -89,25 +89,25 @@ class TestSpreadsheet < Test::Unit::TestCase
     end
   end
 
-  context 'CellCoordinate' do
+  context 'CellAddress' do
     test '#initialize can receive symbols, strings or even arrays, all case insensitive' do
       [
-        CellCoordinate.new(:A2),
-        CellCoordinate.new(:a2),
-        CellCoordinate.new('A2'),
-        CellCoordinate.new('a2'),
-        CellCoordinate.new('A', 2),
-        CellCoordinate.new('a', 2),
-        CellCoordinate.new(:A, 2),
-        CellCoordinate.new(:a, 2),
-        CellCoordinate.new(1, 2),
-        CellCoordinate.new(['A', 2]),
-        CellCoordinate.new(['a', 2]),
-        CellCoordinate.new([:A, 2]),
-        CellCoordinate.new([:a, 2]),
-        CellCoordinate.new([1, 2])
-      ].each do |coord|
-        assert_equal :A2, coord.coord
+        CellAddress.new(:A2),
+        CellAddress.new(:a2),
+        CellAddress.new('A2'),
+        CellAddress.new('a2'),
+        CellAddress.new('A', 2),
+        CellAddress.new('a', 2),
+        CellAddress.new(:A, 2),
+        CellAddress.new(:a, 2),
+        CellAddress.new(1, 2),
+        CellAddress.new(['A', 2]),
+        CellAddress.new(['a', 2]),
+        CellAddress.new([:A, 2]),
+        CellAddress.new([:a, 2]),
+        CellAddress.new([1, 2])
+      ].each do |addr|
+        assert_equal :A2, addr.addr
       end
 
       [
@@ -116,118 +116,118 @@ class TestSpreadsheet < Test::Unit::TestCase
         '2A',
         'A 2',
         nil
-      ].each do |invalid_coord|
-        assert_raises CellCoordinate::IllegalCellReference do
-          CellCoordinate.new invalid_coord
+      ].each do |invalid_addr|
+        assert_raises CellAddress::IllegalCellReference do
+          CellAddress.new invalid_addr
         end
       end
     end
 
     test '#col' do
-      coord_a1   = CellCoordinate.new(:A1)
-      coord_aa1  = CellCoordinate.new(:AA1)
-      coord_aaa1 = CellCoordinate.new(:AAA1)
+      addr_a1   = CellAddress.new(:A1)
+      addr_aa1  = CellAddress.new(:AA1)
+      addr_aaa1 = CellAddress.new(:AAA1)
 
-      assert_equal :A,    coord_a1.col
-      assert_equal :AA,   coord_aa1.col
-      assert_equal :AAA,  coord_aaa1.col
+      assert_equal :A,    addr_a1.col
+      assert_equal :AA,   addr_aa1.col
+      assert_equal :AAA,  addr_aaa1.col
     end
 
     test '#col_index' do
-      coord_a1 = CellCoordinate.new(:A1)
+      addr_a1 = CellAddress.new(:A1)
 
-      assert_equal 1, coord_a1.col_index
+      assert_equal 1, addr_a1.col_index
     end
 
     test '#row' do
-      coord_a2 = CellCoordinate.new(:A2)
+      addr_a2 = CellAddress.new(:A2)
 
-      assert_equal 2, coord_a2.row
+      assert_equal 2, addr_a2.row
     end
 
     test '#col_and_row' do
-      coord_a2 = CellCoordinate.new(:A2)
+      addr_a2 = CellAddress.new(:A2)
 
-      assert_equal [:A, 2], coord_a2.col_and_row
+      assert_equal [:A, 2], addr_a2.col_and_row
     end
 
-    test '.col_coord_index' do
-      assert_equal 1,   CellCoordinate.col_coord_index(:A)
-      assert_equal 27,  CellCoordinate.col_coord_index(:AA)
+    test '.col_addr_index' do
+      assert_equal 1,   CellAddress.col_addr_index(:A)
+      assert_equal 27,  CellAddress.col_addr_index(:AA)
     end
 
-    test '.col_coord_name' do
-      assert_equal :A,  CellCoordinate.col_coord_name(1)
-      assert_equal :AA, CellCoordinate.col_coord_name(27)
+    test '.col_addr_name' do
+      assert_equal :A,  CellAddress.col_addr_name(1)
+      assert_equal :AA, CellAddress.col_addr_name(27)
     end
 
     test '#==' do
-      coord_a1         = CellCoordinate.new(:A1)
-      coord_another_a1 = CellCoordinate.new(:A1)
+      addr_a1         = CellAddress.new(:A1)
+      addr_another_a1 = CellAddress.new(:A1)
 
-      assert_equal coord_another_a1, coord_a1
+      assert_equal addr_another_a1, addr_a1
     end
 
     test '#neighbor' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal coord_d5, coord_d5.neighbor
-      assert_equal CellCoordinate.new(:G5), coord_d5.neighbor(col_count: 3)
-      assert_equal CellCoordinate.new(:A5), coord_d5.neighbor(col_count: -3)
-      assert_raises CellCoordinate::IllegalCellReference do
-        coord_d5.neighbor(col_count: -4)
+      assert_equal addr_d5, addr_d5.neighbor
+      assert_equal CellAddress.new(:G5), addr_d5.neighbor(col_count: 3)
+      assert_equal CellAddress.new(:A5), addr_d5.neighbor(col_count: -3)
+      assert_raises CellAddress::IllegalCellReference do
+        addr_d5.neighbor(col_count: -4)
       end
 
-      assert_equal CellCoordinate.new(:D9), coord_d5.neighbor(row_count: 4)
-      assert_equal CellCoordinate.new(:D1), coord_d5.neighbor(row_count: -4)
-      assert_raises CellCoordinate::IllegalCellReference do
-        coord_d5.neighbor(row_count: -5)
+      assert_equal CellAddress.new(:D9), addr_d5.neighbor(row_count: 4)
+      assert_equal CellAddress.new(:D1), addr_d5.neighbor(row_count: -4)
+      assert_raises CellAddress::IllegalCellReference do
+        addr_d5.neighbor(row_count: -5)
       end
 
-      assert_equal CellCoordinate.new(:G1), coord_d5.neighbor(col_count: 3, row_count: -4)
-      assert_raises CellCoordinate::IllegalCellReference do
-        coord_d5.neighbor(col_count: -4, row_count: -5)
+      assert_equal CellAddress.new(:G1), addr_d5.neighbor(col_count: 3, row_count: -4)
+      assert_raises CellAddress::IllegalCellReference do
+        addr_d5.neighbor(col_count: -4, row_count: -5)
       end
     end
 
     test '#left_neighbor' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal CellCoordinate.new(:C5), coord_d5.left_neighbor
-      assert_equal CellCoordinate.new(:A5), coord_d5.left_neighbor(3)
-      assert_raises CellCoordinate::IllegalCellReference do
-        coord_d5.left_neighbor(4)
+      assert_equal CellAddress.new(:C5), addr_d5.left_neighbor
+      assert_equal CellAddress.new(:A5), addr_d5.left_neighbor(3)
+      assert_raises CellAddress::IllegalCellReference do
+        addr_d5.left_neighbor(4)
       end
     end
 
     test '#right_neighbor' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal CellCoordinate.new(:E5), coord_d5.right_neighbor
-      assert_equal CellCoordinate.new(:G5), coord_d5.right_neighbor(3)
+      assert_equal CellAddress.new(:E5), addr_d5.right_neighbor
+      assert_equal CellAddress.new(:G5), addr_d5.right_neighbor(3)
     end
 
     test '#upper_neighbor' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal CellCoordinate.new(:D4), coord_d5.upper_neighbor
-      assert_equal CellCoordinate.new(:D1), coord_d5.upper_neighbor(4)
-      assert_raises CellCoordinate::IllegalCellReference do
-        coord_d5.upper_neighbor(5)
+      assert_equal CellAddress.new(:D4), addr_d5.upper_neighbor
+      assert_equal CellAddress.new(:D1), addr_d5.upper_neighbor(4)
+      assert_raises CellAddress::IllegalCellReference do
+        addr_d5.upper_neighbor(5)
       end
     end
 
     test '#lower_neighbor' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal CellCoordinate.new(:D6), coord_d5.lower_neighbor
-      assert_equal CellCoordinate.new(:D9), coord_d5.lower_neighbor(4)
+      assert_equal CellAddress.new(:D6), addr_d5.lower_neighbor
+      assert_equal CellAddress.new(:D9), addr_d5.lower_neighbor(4)
     end
 
     test '#to_s' do
-      coord_d5 = CellCoordinate.new(:D5)
+      addr_d5 = CellAddress.new(:D5)
 
-      assert_equal 'D5', coord_d5.to_s
+      assert_equal 'D5', addr_d5.to_s
     end
   end
 
@@ -264,7 +264,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test 'creates new cells as needed' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal :A1, a1.coord.coord
+        assert_equal :A1, a1.addr.addr
       end
     end
 
@@ -294,8 +294,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         [ 4,                    :C2 ],
         [ Cell::DEFAULT_VALUE,  :D1 ],
         [ Cell::DEFAULT_VALUE,  :D2 ]
-      ].each do |value, coord|
-        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+      ].each do |value, addr|
+        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
       end
     end
 
@@ -315,8 +315,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         [ Cell::DEFAULT_VALUE,  :B2 ],
         [ Cell::DEFAULT_VALUE,  :C1 ],
         [ Cell::DEFAULT_VALUE,  :C2 ]
-      ].each do |value, coord|
-        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+      ].each do |value, addr|
+        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
       end
     end
 
@@ -337,8 +337,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         [4,                    :B3],
         [Cell::DEFAULT_VALUE,  :A4],
         [Cell::DEFAULT_VALUE,  :B4]
-      ].each do |value, coord|
-        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+      ].each do |value, addr|
+        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
       end
     end
 
@@ -358,8 +358,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         [Cell::DEFAULT_VALUE,  :B2],
         [Cell::DEFAULT_VALUE,  :A3],
         [Cell::DEFAULT_VALUE,  :B3]
-      ].each do |value, coord|
-        assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+      ].each do |value, addr|
+        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
       end
     end
 
@@ -397,8 +397,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 7, :C1 ],
             [ 8, :C2 ],
             [ 9, :C3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -431,8 +431,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 10, :D1 ],
             [ 11, :D2 ],
             [ 12, :D3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -461,8 +461,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 4, :C1 ],
             [ 5, :C2 ],
             [ 6, :C3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -495,8 +495,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 4, :D1 ],
             [ 5, :D2 ],
             [ 6, :D3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -527,8 +527,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 7, :A3 ],
             [ 8, :B3 ],
             [ 9, :C3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -561,8 +561,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 10, :A4 ],
             [ 11, :B4 ],
             [ 12, :C4 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -591,8 +591,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 4, :A3 ],
             [ 5, :B3 ],
             [ 6, :C3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -625,8 +625,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 4, :A4 ],
             [ 5, :B4 ],
             [ 6, :C4 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -663,8 +663,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 10, :D1 ],
             [ 11, :D2 ],
             [ 12, :D3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -703,8 +703,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 13, :E1 ],
             [ 14, :E2 ],
             [ 15, :E3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -739,8 +739,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 10, :D1 ],
             [ 11, :D2 ],
             [ 12, :D3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -779,8 +779,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 13, :E1 ],
             [ 14, :E2 ],
             [ 15, :E3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -817,8 +817,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 10, :A4 ],
             [ 11, :B4 ],
             [ 12, :C4 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -857,8 +857,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 13, :A5 ],
             [ 14, :B5 ],
             [ 15, :C5 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -887,8 +887,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 7, :A3 ],
             [ 8, :B3 ],
             [ 9, :C3 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
 
@@ -927,8 +927,8 @@ class TestSpreadsheet < Test::Unit::TestCase
             [ 13, :A5 ],
             [ 14, :B5 ],
             [ 15, :C5 ]
-          ].each do |value, coord|
-            assert_equal value, @spreadsheet.find_or_create_cell(coord).eval
+          ].each do |value, addr|
+            assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
           end
         end
       end
@@ -946,7 +946,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       context 'formulas' do
-        test 'allow coorderencing other cells' do
+        test 'allow addrerencing other cells' do
           a1 = @spreadsheet.set(:A1, 1)
           a2 = @spreadsheet.set(:A2, 2)
           a3 = @spreadsheet.set(:A3, '= (A1 + A2) * 3')
@@ -1041,22 +1041,22 @@ class TestSpreadsheet < Test::Unit::TestCase
             a2 = @spreadsheet.set(:A2, '= A1 + $A1 + A$1 + $A$1')
 
             assert_equal [a1, a1, a1, a1], a2.references
-            assert_equal ['A1', '$A1', 'A$1', '$A$1'], a2.references.map(&:full_coord)
+            assert_equal ['A1', '$A1', 'A$1', '$A$1'], a2.references.map(&:full_addr)
             assert_equal [a2], a1.observers
 
             a2.content = '= A1 + $A1 + A$1'
             assert_equal [a1, a1, a1], a2.references
-            assert_equal ['A1', '$A1', 'A$1'], a2.references.map(&:full_coord)
+            assert_equal ['A1', '$A1', 'A$1'], a2.references.map(&:full_addr)
             assert_equal [a2], a1.observers
 
             a2.content = '= A1 + $A1'
             assert_equal [a1, a1], a2.references
-            assert_equal ['A1', '$A1'], a2.references.map(&:full_coord)
+            assert_equal ['A1', '$A1'], a2.references.map(&:full_addr)
             assert_equal [a2], a1.observers
 
             a2.content = '= A1'
             assert_equal [a1], a2.references
-            assert_equal ['A1'], a2.references.map(&:full_coord)
+            assert_equal ['A1'], a2.references.map(&:full_addr)
             assert_equal [a2], a1.observers
 
             a2.content = ''
@@ -1088,7 +1088,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal [a2, a3, a4], a1.references
       end
 
-      test 'are marked as observers in other cells when coorderencing them' do
+      test 'are marked as observers in other cells when addrerencing them' do
         a1 = @spreadsheet.set(:A1, '= A2 + A3 + A4')
         a2 = @spreadsheet.find_or_create_cell(:A2)
         a3 = @spreadsheet.find_or_create_cell(:A3)
@@ -1100,45 +1100,45 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '.splat_range works for cells in same row' do
-        a1_coord = CellCoordinate.new(:A1)
-        b1_coord = CellCoordinate.new(:B1)
-        c1_coord = CellCoordinate.new(:C1)
+        a1_addr = CellAddress.new(:A1)
+        b1_addr = CellAddress.new(:B1)
+        c1_addr = CellAddress.new(:C1)
 
-        assert_equal [[a1_coord, b1_coord, c1_coord]], CellCoordinate.splat_range(:A1, :C1)
-        assert_equal [[a1_coord, b1_coord, c1_coord]], CellCoordinate.splat_range(CellCoordinate.new(:A1), CellCoordinate.new(:C1))
+        assert_equal [[a1_addr, b1_addr, c1_addr]], CellAddress.splat_range(:A1, :C1)
+        assert_equal [[a1_addr, b1_addr, c1_addr]], CellAddress.splat_range(CellAddress.new(:A1), CellAddress.new(:C1))
       end
 
       test '.splat_range works for cells in same column' do
-        a1_coord = CellCoordinate.new(:A1)
-        a2_coord = CellCoordinate.new(:A2)
-        a3_coord = CellCoordinate.new(:A3)
+        a1_addr = CellAddress.new(:A1)
+        a2_addr = CellAddress.new(:A2)
+        a3_addr = CellAddress.new(:A3)
 
-        assert_equal [[a1_coord], [a2_coord], [a3_coord]], CellCoordinate.splat_range(:A1, :A3)
-        assert_equal [[a1_coord], [a2_coord], [a3_coord]], CellCoordinate.splat_range(CellCoordinate.new(:A1), CellCoordinate.new(:A3))
+        assert_equal [[a1_addr], [a2_addr], [a3_addr]], CellAddress.splat_range(:A1, :A3)
+        assert_equal [[a1_addr], [a2_addr], [a3_addr]], CellAddress.splat_range(CellAddress.new(:A1), CellAddress.new(:A3))
       end
 
       test '.splat_range works for cells in distinct rows and columns' do
-        a1_coord = CellCoordinate.new(:A1)
-        b1_coord = CellCoordinate.new(:B1)
-        c1_coord = CellCoordinate.new(:C1)
-        a2_coord = CellCoordinate.new(:A2)
-        b2_coord = CellCoordinate.new(:B2)
-        c2_coord = CellCoordinate.new(:C2)
-        a3_coord = CellCoordinate.new(:A3)
-        b3_coord = CellCoordinate.new(:B3)
-        c3_coord = CellCoordinate.new(:C3)
+        a1_addr = CellAddress.new(:A1)
+        b1_addr = CellAddress.new(:B1)
+        c1_addr = CellAddress.new(:C1)
+        a2_addr = CellAddress.new(:A2)
+        b2_addr = CellAddress.new(:B2)
+        c2_addr = CellAddress.new(:C2)
+        a3_addr = CellAddress.new(:A3)
+        b3_addr = CellAddress.new(:B3)
+        c3_addr = CellAddress.new(:C3)
 
         assert_equal [
-          [a1_coord, b1_coord, c1_coord],
-          [a2_coord, b2_coord, c2_coord],
-          [a3_coord, b3_coord, c3_coord]
-        ], CellCoordinate.splat_range(:A1, :C3)
+          [a1_addr, b1_addr, c1_addr],
+          [a2_addr, b2_addr, c2_addr],
+          [a3_addr, b3_addr, c3_addr]
+        ], CellAddress.splat_range(:A1, :C3)
 
         assert_equal [
-          [a1_coord, b1_coord, c1_coord],
-          [a2_coord, b2_coord, c2_coord],
-          [a3_coord, b3_coord, c3_coord]
-        ], CellCoordinate.splat_range(CellCoordinate.new(:A1), CellCoordinate.new(:C3))
+          [a1_addr, b1_addr, c1_addr],
+          [a2_addr, b2_addr, c2_addr],
+          [a3_addr, b3_addr, c3_addr]
+        ], CellAddress.splat_range(CellAddress.new(:A1), CellAddress.new(:C3))
       end
 
       test 'can hold formulas with functions which include cell ranges' do
@@ -1322,7 +1322,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test '#move_left! should raise an error when in leftmost cell' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_raises CellCoordinate::IllegalCellReference do
+        assert_raises CellAddress::IllegalCellReference do
           a1.move_left!
         end
       end
@@ -1382,7 +1382,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test '#move_up! should raise an error when in topmost cell' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_raises CellCoordinate::IllegalCellReference do
+        assert_raises CellAddress::IllegalCellReference do
           a1.move_up!
         end
       end
@@ -1412,62 +1412,62 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true,  @c3_cw_abs_abs.absolute_row?
       end
 
-      test '#full_coord' do
-        assert_equal 'C3',    @c3_cw_rel_rel.full_coord
-        assert_equal 'C$3',   @c3_cw_rel_abs.full_coord
-        assert_equal '$C3',   @c3_cw_abs_rel.full_coord
-        assert_equal '$C$3',  @c3_cw_abs_abs.full_coord
+      test '#full_addr' do
+        assert_equal 'C3',    @c3_cw_rel_rel.full_addr
+        assert_equal 'C$3',   @c3_cw_rel_abs.full_addr
+        assert_equal '$C3',   @c3_cw_abs_rel.full_addr
+        assert_equal '$C$3',  @c3_cw_abs_abs.full_addr
       end
 
-      context '#new_coord' do
+      context '#new_addr' do
         test 'when moving cells forward in same row' do
-          source_coord = CellCoordinate.new('A1')
-          dest_coord   = CellCoordinate.new('C1')
+          source_addr = CellAddress.new('A1')
+          dest_addr   = CellAddress.new('C1')
 
-          assert_equal 'E3',    @c3_cw_rel_rel.new_coord(source_coord, dest_coord)
-          assert_equal 'E$3',   @c3_cw_rel_abs.new_coord(source_coord, dest_coord)
-          assert_equal '$C3',   @c3_cw_abs_rel.new_coord(source_coord, dest_coord)
-          assert_equal '$C$3',  @c3_cw_abs_abs.new_coord(source_coord, dest_coord)
+          assert_equal 'E3',    @c3_cw_rel_rel.new_addr(source_addr, dest_addr)
+          assert_equal 'E$3',   @c3_cw_rel_abs.new_addr(source_addr, dest_addr)
+          assert_equal '$C3',   @c3_cw_abs_rel.new_addr(source_addr, dest_addr)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_addr(source_addr, dest_addr)
         end
 
         test 'when moving cells backwards in same row' do
-          source_coord = CellCoordinate.new('C1')
-          dest_coord   = CellCoordinate.new('A1')
+          source_addr = CellAddress.new('C1')
+          dest_addr   = CellAddress.new('A1')
 
-          assert_equal 'A3',    @c3_cw_rel_rel.new_coord(source_coord, dest_coord)
-          assert_equal 'A$3',   @c3_cw_rel_abs.new_coord(source_coord, dest_coord)
-          assert_equal '$C3',   @c3_cw_abs_rel.new_coord(source_coord, dest_coord)
-          assert_equal '$C$3',  @c3_cw_abs_abs.new_coord(source_coord, dest_coord)
+          assert_equal 'A3',    @c3_cw_rel_rel.new_addr(source_addr, dest_addr)
+          assert_equal 'A$3',   @c3_cw_rel_abs.new_addr(source_addr, dest_addr)
+          assert_equal '$C3',   @c3_cw_abs_rel.new_addr(source_addr, dest_addr)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_addr(source_addr, dest_addr)
         end
 
         test 'when moving cells forward in same column' do
-          source_coord = CellCoordinate.new('A1')
-          dest_coord   = CellCoordinate.new('A3')
+          source_addr = CellAddress.new('A1')
+          dest_addr   = CellAddress.new('A3')
 
-          assert_equal 'C5',    @c3_cw_rel_rel.new_coord(source_coord, dest_coord)
-          assert_equal 'C$3',   @c3_cw_rel_abs.new_coord(source_coord, dest_coord)
-          assert_equal '$C5',   @c3_cw_abs_rel.new_coord(source_coord, dest_coord)
-          assert_equal '$C$3',  @c3_cw_abs_abs.new_coord(source_coord, dest_coord)
+          assert_equal 'C5',    @c3_cw_rel_rel.new_addr(source_addr, dest_addr)
+          assert_equal 'C$3',   @c3_cw_rel_abs.new_addr(source_addr, dest_addr)
+          assert_equal '$C5',   @c3_cw_abs_rel.new_addr(source_addr, dest_addr)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_addr(source_addr, dest_addr)
         end
 
         test 'when moving cells backwards in same column' do
-          source_coord = CellCoordinate.new('A3')
-          dest_coord   = CellCoordinate.new('A1')
+          source_addr = CellAddress.new('A3')
+          dest_addr   = CellAddress.new('A1')
 
-          assert_equal 'C1',    @c3_cw_rel_rel.new_coord(source_coord, dest_coord)
-          assert_equal 'C$3',   @c3_cw_rel_abs.new_coord(source_coord, dest_coord)
-          assert_equal '$C1',   @c3_cw_abs_rel.new_coord(source_coord, dest_coord)
-          assert_equal '$C$3',  @c3_cw_abs_abs.new_coord(source_coord, dest_coord)
+          assert_equal 'C1',    @c3_cw_rel_rel.new_addr(source_addr, dest_addr)
+          assert_equal 'C$3',   @c3_cw_rel_abs.new_addr(source_addr, dest_addr)
+          assert_equal '$C1',   @c3_cw_abs_rel.new_addr(source_addr, dest_addr)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_addr(source_addr, dest_addr)
         end
 
         test 'when moving cells to distinct rows and columns' do
-          source_coord = CellCoordinate.new('A1')
-          dest_coord   = CellCoordinate.new('C3')
+          source_addr = CellAddress.new('A1')
+          dest_addr   = CellAddress.new('C3')
 
-          assert_equal 'E5',    @c3_cw_rel_rel.new_coord(source_coord, dest_coord)
-          assert_equal 'E$3',   @c3_cw_rel_abs.new_coord(source_coord, dest_coord)
-          assert_equal '$C5',   @c3_cw_abs_rel.new_coord(source_coord, dest_coord)
-          assert_equal '$C$3',  @c3_cw_abs_abs.new_coord(source_coord, dest_coord)
+          assert_equal 'E5',    @c3_cw_rel_rel.new_addr(source_addr, dest_addr)
+          assert_equal 'E$3',   @c3_cw_rel_abs.new_addr(source_addr, dest_addr)
+          assert_equal '$C5',   @c3_cw_abs_rel.new_addr(source_addr, dest_addr)
+          assert_equal '$C$3',  @c3_cw_abs_abs.new_addr(source_addr, dest_addr)
         end
       end
     end
