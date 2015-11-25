@@ -200,7 +200,7 @@ class Cell
     addr = CellAddress.self_or_new(addr)
 
     @spreadsheet             = spreadsheet
-    @addr                   = addr
+    @addr                    = addr
     @references              = []
     @observers               = []
     @max_reference_timestamp = nil
@@ -1093,27 +1093,27 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # Fibonacci sequence.
-  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  a3 = spreadsheet.set(:A3, 1)
-  a4 = spreadsheet.set(:A4, '=A3+1')
-  a4.copy_to_range 'A5:A20'
-  b3 = spreadsheet.set(:B3, 1)
-  b4 = spreadsheet.set(:B4, 1)
-  b5 = spreadsheet.set(:B5, '=B3+B4')
-  b5.copy_to_range 'B6:B20'
-
-  # Factorials.
-  c1 = spreadsheet.set(:C1, 'Factorials:')
-  c3 = spreadsheet.set(:C3, 1)
-  c4 = spreadsheet.set(:C4, '=A4*C3')
-  c4.copy_to_range 'C5:C20'
+  # # Fibonacci sequence.
+  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  # a3 = spreadsheet.set(:A3, 1)
+  # a4 = spreadsheet.set(:A4, '=A3+1')
+  # a4.copy_to_range 'A5:A20'
+  # b3 = spreadsheet.set(:B3, 1)
+  # b4 = spreadsheet.set(:B4, 1)
+  # b5 = spreadsheet.set(:B5, '=B3+B4')
+  # b5.copy_to_range 'B6:B20'
+  #
+  # # Factorials.
+  # c1 = spreadsheet.set(:C1, 'Factorials:')
+  # c3 = spreadsheet.set(:C3, 1)
+  # c4 = spreadsheet.set(:C4, '=A4*C3')
+  # c4.copy_to_range 'C5:C20'
 
   # Case with performance problems.
-  # a1 = spreadsheet.set(:A1, 1)
-  # a2 = spreadsheet.set(:A2, '=A1+1')
-  # a2.copy_to_range 'A3:A100'
-  # spreadsheet.set(:A101, '=sum(A1:A100)')
+  a1 = spreadsheet.set(:A1, 1)
+  a2 = spreadsheet.set(:A2, '=A1+1')
+  a2.copy_to_range 'A3:A100'
+  spreadsheet.set(:A101, '=sum(A1:A100)')
 
   spreadsheet.repl
 end
