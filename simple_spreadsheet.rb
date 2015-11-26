@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = false
+  DEBUG = true
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -398,7 +398,7 @@ class Cell
     spreadsheet.move_cell source_addr, dest_addr
 
     observers.each do |observer|
-      observer.update_reference source_addr, dest_addr
+      observer.update_address source_addr, dest_addr
     end
   end
 
@@ -418,14 +418,14 @@ class Cell
     move_to! addr.upper_neighbor(row_count)
   end
 
-  def update_reference(old_addr, new_addr)
-    log "Replacing reference `#{old_addr}` with `#{new_addr}` in #{addr}"
+  def update_address(old_addr, new_addr)
+    log "Replacing address `#{old_addr}` with `#{new_addr}` in #{addr}"
 
     old_col, old_row = CellAddress.parse_addr(old_addr)
     new_col, new_row = CellAddress.parse_addr(new_addr)
 
     # Do not use gsub! (since the setter won't be called).
-    self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![0-9])/i) { [$1, new_col, $2, new_row].join }
+    self.content = self.raw_content.gsub(/(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i) { [$1, new_col, $2, new_row].join }
   end
 
   def formula?
@@ -1133,14 +1133,11 @@ def run!
   # c4 = spreadsheet.set(:C4, '=A4*C3')
   # c4.copy_to_range 'C5:C20'
 
-  spreadsheet.set :A1, 1
+  # Case with performance problems.
+  a1 = spreadsheet.set(:A1, 1)
   a2 = spreadsheet.set(:A2, '=A1+1')
-  a2.copy_to_range 'A3:A100'
-  spreadsheet.set :A101, '=sum(A1:A100)'
-  spreadsheet.set :A102, '=average(A1:A100)'
-  spreadsheet.set :A103, '=count(A1:A100)'
-  spreadsheet.set :A104, '=min(A1:A100)'
-  spreadsheet.set :A105, '=max(A1:A100)'
+  a2.copy_to_range 'A3:A10'
+  spreadsheet.set(:A11, '=sum(A1:A10)')
 
   spreadsheet.repl
 end
