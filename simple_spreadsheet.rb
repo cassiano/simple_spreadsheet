@@ -387,7 +387,7 @@ class Cell
     spreadsheet.set dest_addr, dest_content
   end
 
-  def move_to!(dest_addr)
+  def move_to!(dest_addr, move_ranges: false)
     dest_addr = CellAddress.self_or_new(dest_addr)
 
     return if dest_addr == addr
@@ -398,34 +398,43 @@ class Cell
     spreadsheet.move_cell source_addr, dest_addr
 
     observers.each do |observer|
-      observer.update_address source_addr, dest_addr
+      observer.update_address source_addr, dest_addr, move_ranges: move_ranges
     end
   end
 
-  def move_right!(col_count = 1)
-    move_to! addr.right_neighbor(col_count)
+  def move_right!(col_count: 1, move_ranges: false)
+    move_to! addr.right_neighbor(col_count), move_ranges: move_ranges
   end
 
-  def move_left!(col_count = 1)
-    move_to! addr.left_neighbor(col_count)
+  def move_left!(col_count: 1, move_ranges: false)
+    move_to! addr.left_neighbor(col_count), move_ranges: move_ranges
   end
 
-  def move_down!(row_count = 1)
-    move_to! addr.lower_neighbor(row_count)
+  def move_down!(row_count: 1, move_ranges: false)
+    move_to! addr.lower_neighbor(row_count), move_ranges: move_ranges
   end
 
-  def move_up!(row_count = 1)
-    move_to! addr.upper_neighbor(row_count)
+  def move_up!(row_count: 1, move_ranges: false)
+    move_to! addr.upper_neighbor(row_count), move_ranges: move_ranges
   end
 
-  def update_address(old_addr, new_addr)
+  def update_address(old_addr, new_addr, move_ranges: false)
     log "Replacing address `#{old_addr}` with `#{new_addr}` in #{addr}"
 
     old_col, old_row = CellAddress.parse_addr(old_addr)
     new_col, new_row = CellAddress.parse_addr(new_addr)
 
     # Do not use gsub! (since the setter won't be called).
-    self.content = self.raw_content.gsub(/(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i) { [$1, new_col, $2, new_row].join }
+    reg_exp =
+      if move_ranges
+        /(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![0-9])/i
+      else
+        /(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i
+      end
+
+    log ">>> RE: #{reg_exp}"
+
+    self.content = self.raw_content.gsub(reg_exp) { [$1, new_col, $2, new_row].join }
   end
 
   def formula?
@@ -688,7 +697,7 @@ class Spreadsheet
 
     cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_right! count
+        cell.move_right! col_count: count, move_ranges: true
       end
     end
   end
@@ -700,7 +709,7 @@ class Spreadsheet
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_left! count
+        cell.move_left! col_count: count, move_ranges: true
       end
     end
   end
@@ -708,7 +717,7 @@ class Spreadsheet
   def add_row(row_to_add, count = 1)
     cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_down! count
+        cell.move_down! row_count: count, move_ranges: true
       end
     end
   end
@@ -718,7 +727,7 @@ class Spreadsheet
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_up! count
+        cell.move_up! row_count: count, move_ranges: true
       end
     end
   end
@@ -734,7 +743,7 @@ class Spreadsheet
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_right! dest_col - source_col
+          cell.move_right! col_count: dest_col - source_col, move_ranges: true
         end
       end
 
@@ -746,7 +755,7 @@ class Spreadsheet
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_left! source_col - dest_col
+          cell.move_left! col_count: source_col - dest_col, move_ranges: true
         end
       end
 
@@ -762,7 +771,7 @@ class Spreadsheet
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_down! dest_row - source_row
+          cell.move_down! row_count: dest_row - source_row, move_ranges: true
         end
       end
 
@@ -774,7 +783,7 @@ class Spreadsheet
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_up! source_row - dest_row
+          cell.move_up! row_count: source_row - dest_row, move_ranges: true
         end
       end
 
@@ -987,13 +996,13 @@ class Spreadsheet
           when 'S' then
             cell.move_to! read_cell_addr.call('Select destination reference: ')
           when 'U' then
-            cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
+            cell.move_up! row_count: read_number.call('Enter # of rows (default: 1): ', 1)
           when 'D' then
-            cell.move_down! read_number.call('Enter # of rows (default: 1): ', 1)
+            cell.move_down! row_count: read_number.call('Enter # of rows (default: 1): ', 1)
           when 'L' then
-            cell.move_left! read_number.call('Enter # of cols (default: 1): ', 1)
+            cell.move_left! col_count: read_number.call('Enter # of cols (default: 1): ', 1)
           when 'R' then
-            cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
+            cell.move_right! col_count: read_number.call('Enter # of cols (default: 1): ', 1)
           end
 
         when 'C' then
@@ -1133,11 +1142,10 @@ def run!
   # c4 = spreadsheet.set(:C4, '=A4*C3')
   # c4.copy_to_range 'C5:C20'
 
-  # Case with performance problems.
-  a1 = spreadsheet.set(:A1, 1)
+  spreadsheet.set :A1, 1
   a2 = spreadsheet.set(:A2, '=A1+1')
   a2.copy_to_range 'A3:A10'
-  spreadsheet.set(:A11, '=sum(A1:A10)')
+  spreadsheet.set :A11, '=sum(A1:A10)'
 
   spreadsheet.repl
 end
