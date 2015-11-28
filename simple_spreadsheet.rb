@@ -191,7 +191,7 @@ class Cell
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
 
-  attr_reader   :spreadsheet, :addr, :references, :observers, :content, :raw_content, :last_evaluated_at
+  attr_reader   :spreadsheet, :addr, :references, :observers, :content, :evaluatable_content, :last_evaluated_at
   attr_accessor :max_reference_timestamp
 
   def initialize(spreadsheet, addr, content = nil)
@@ -233,25 +233,29 @@ class Cell
     if new_content.is_a?(String)
       new_content.gsub!(/(#{CellAddress::CELL_COORD})/i) { $1.upcase }
 
-      @raw_content, @content = new_content.clone, new_content.clone
+      Formula.singleton_methods.each do |method|
+        new_content.gsub! /\b#{method}\(/i, "#{method}("
+      end
+
+      @content, @evaluatable_content = new_content.clone, new_content.clone
     else
-      @raw_content, @content = new_content, new_content
+      @content, @evaluatable_content = new_content, new_content
     end
 
     @last_evaluated_at = nil    # Assume it was never evaluated before, since its contents have effectively changed.
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @content[1..-1].scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
-        @content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
-                        '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
-                          '[' + row.map(&:to_s).join(', ') + ']'
-                        }.join(', ') + ']'
+      @evaluatable_content[1..-1].scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
+        @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
+                                    '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
+                                      '[' + row.map(&:to_s).join(', ') + ']'
+                                    }.join(', ') + ']'
       end
 
       new_references = find_references
 
-      @content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
+      @evaluatable_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
 
       log "References found: #{new_references.map(&:full_addr).join(', ')}"
     end
@@ -271,7 +275,7 @@ class Cell
 
       eval true
     rescue StandardError => e
-      @evaluated_content, @raw_content, @content = "Error '#{e.message}': `#{@content}`"
+      @evaluated_content, @content, @evaluatable_content = "Error '#{e.message}': `#{@evaluatable_content}`"
 
       remove_all_references
     end
@@ -280,7 +284,7 @@ class Cell
   def find_references
     return [] unless formula?
 
-    content[1..-1].scan(CellAddress::CELL_COORD_REG_EXP).inject [] do |memo, addr|
+    evaluatable_content[1..-1].scan(CellAddress::CELL_COORD_REG_EXP).inject [] do |memo, addr|
       cell           = spreadsheet.find_or_create_cell(addr)
       cell_reference = CellReference.new cell, addr
 
@@ -304,7 +308,7 @@ class Cell
         if formula?
           log ">>> Calculating formula for #{addr}"
 
-          evaluated_content = content[1..-1]
+          evaluated_content = evaluatable_content[1..-1]
 
           references_hash = references.inject Hash.new do |memo, ref|
             memo.merge ref.addr.addr => ref.eval.to_s
@@ -370,8 +374,8 @@ class Cell
 
     return if dest_addr == addr
 
-    if raw_content.is_a?(String)
-      dest_content = raw_content.clone
+    if content.is_a?(String)
+      dest_content = content.clone
 
       log "Content before replacements in copy_to: #{dest_content}"
 
@@ -383,7 +387,7 @@ class Cell
 
       log "Content after replacements in copy_to: #{dest_content}"
     else
-      dest_content = raw_content
+      dest_content = content
     end
 
     spreadsheet.set dest_addr, dest_content
@@ -886,7 +890,7 @@ class Spreadsheet
                 # Highlight cell if value has changed.
                 highlight_cell = last_change && cell.last_evaluated_at > last_change
 
-                lrjust.call("`#{cell.raw_content}`", value.to_s, PP_CELL_SIZE)
+                lrjust.call("`#{cell.content}`", value.to_s, PP_CELL_SIZE)
               else
                 value.to_s.rjust(PP_CELL_SIZE)
               end
