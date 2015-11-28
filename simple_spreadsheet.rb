@@ -231,9 +231,9 @@ class Cell
     new_references = []
 
     if new_content.is_a?(String)
-      uppercased_content = new_content.gsub(/(#{CellAddress::CELL_COORD})/i) { $1.upcase }
+      new_content.gsub!(/(#{CellAddress::CELL_COORD})/i) { $1.upcase }
 
-      @raw_content, @content = uppercased_content, uppercased_content.clone
+      @raw_content, @content = new_content.clone, new_content.clone
     else
       @raw_content, @content = new_content, new_content
     end
@@ -250,6 +250,8 @@ class Cell
       end
 
       new_references = find_references
+
+      @content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
 
       log "References found: #{new_references.map(&:full_addr).join(', ')}"
     end
@@ -304,15 +306,15 @@ class Cell
 
           evaluated_content = content[1..-1]
 
-          references.each do |reference|
-            # Replace the reference in the content, making sure it's not preceeded by a letter or succeeded by a number. This simple
-            # rule assures references like 'A1' are correctly replaced in formulas like '= A1 + A11 * AA1 / AA11'
-            evaluated_content.gsub! /(?<![A-Z\$])#{Regexp.escape(reference.full_addr)}(?![0-9])/i, reference.eval.to_s
+          references_hash = references.inject Hash.new do |memo, ref|
+            memo.merge ref.addr.addr => ref.eval.to_s
           end
+
+          log ">>> References hash: #{references_hash.inspect}"
 
           # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
           # Formula's (singleton) methods.
-          Formula.instance_eval { eval evaluated_content }
+          Formula.instance_eval { eval evaluated_content % references_hash }
         else
           content
         end
@@ -443,7 +445,7 @@ class Cell
   def inspect
     {
       spreadsheet: spreadsheet.object_id,
-      address:     address.addr,
+      address:     addr.addr,
       references:  references,
       observers:   observers
     }
