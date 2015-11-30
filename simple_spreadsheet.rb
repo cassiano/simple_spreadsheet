@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = false
+  DEBUG = true
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -186,7 +186,8 @@ class CellAddress
 end
 
 class Cell
-  DEFAULT_VALUE = 0
+  DEFAULT_VALUE        = 0
+  RANGE_CELL_DELIMITER = '≤≥'
 
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
@@ -225,17 +226,17 @@ class Cell
 
     new_content.strip! if new_content.is_a?(String)
 
-    return if content == new_content
+    # return if content == new_content
 
     old_references = references.clone
     new_references = []
 
     if new_content.is_a?(String)
+      # Upcase cell addresses (e.g. 'a1' by 'A1').
       new_content.gsub!(/(#{CellAddress::CELL_COORD})/i) { $1.upcase }
 
-      Formula.singleton_methods.each do |method|
-        new_content.gsub! /\b#{method}\(/i, "#{method}("
-      end
+      # Downcase formula function names (e.g. 'SUM(A1: A2)' by 'sum(A1:A2)').
+      Formula.singleton_methods.each { |method| new_content.gsub! /\b#{method}\(/i, "#{method}(" }
 
       @content, @evaluatable_content = new_content.clone, new_content.clone
     else
@@ -249,12 +250,17 @@ class Cell
       @evaluatable_content[1..-1].scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
-                                      '[' + row.map(&:to_s).join(', ') + ']'
+                                      '[' + row.map { |addr| [RANGE_CELL_DELIMITER, addr, RANGE_CELL_DELIMITER].join }.join(', ') + ']'
                                     }.join(', ') + ']'
       end
 
       new_references = find_references
 
+      # Remove all range cell delimiters.
+      @evaluatable_content.gsub! RANGE_CELL_DELIMITER, ''
+
+      # Replace cell relative or absolute addresses by template variables with relative addresses (e.g. 'A1', 'A$1', '$A1' or '$A$1' by
+      # '%{A1}').
       @evaluatable_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
 
       log "References found: #{new_references.map(&:full_addr).join(', ')}"
@@ -284,9 +290,12 @@ class Cell
   def find_references
     return [] unless formula?
 
-    evaluatable_content[1..-1].scan(CellAddress::CELL_COORD_REG_EXP).inject [] do |memo, addr|
+    delimiter_re = Regexp.escape(RANGE_CELL_DELIMITER)
+    re           = /(#{delimiter_re})?(#{CellAddress::CELL_COORD})(#{delimiter_re})?/i
+
+    evaluatable_content[1..-1].scan(re).inject [] do |memo, (delimiter1, addr, delimiter2)|
       cell           = spreadsheet.find_or_create_cell(addr)
-      cell_reference = CellReference.new cell, addr
+      cell_reference = CellReference.new(cell, addr: addr, is_range_cell: !!(delimiter1 && delimiter2))
 
       memo.unique_add cell_reference
     end
@@ -310,14 +319,15 @@ class Cell
 
           evaluated_content = evaluatable_content[1..-1]
 
+          # Build a hash of all formula references with their corresponding values (e.g. `{ A1: 10, A2: 20 }`).
           references_hash = references.inject Hash.new do |memo, ref|
             memo.merge ref.addr.addr => ref.eval.to_s
           end
 
           log ">>> References hash: #{references_hash.inspect}"
 
-          # Evaluate the cell's content in the Formula context, so "functions" like `sum`, `average` etc are simply treated as calls to
-          # Formula's (singleton) methods.
+          # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
+          # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
           Formula.instance_eval { eval evaluated_content % references_hash }
         else
           content
@@ -403,8 +413,16 @@ class Cell
 
     spreadsheet.move_cell source_addr, dest_addr
 
-    observers.each do |observer|
-      observer.update_reference source_addr, dest_addr
+    log "#{addr.addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
+
+    # Notice we have to clone the `observers` collection prior to iterating in it, because it may change during the iteration.
+    observers.clone.each do |observer|
+      if observer.range_cell?
+        # Force content to be rechecked.
+        observer.content = observer.content
+      else
+        observer.update_reference source_addr, dest_addr
+      end
     end
   end
 
@@ -431,7 +449,7 @@ class Cell
     new_col, new_row = CellAddress.parse_addr(new_addr)
 
     # Do not use gsub! (since the setter won't be called).
-    self.content = self.content.gsub(/(?<![A-Z])(\$?)#{old_col}(\$?)#{old_row}(?![0-9])/i) { [$1, new_col, $2, new_row].join }
+    self.content = self.content.gsub(/(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i) { [$1, new_col, $2, new_row].join }
   end
 
   def formula?
@@ -474,10 +492,10 @@ class Cell
       raise CircularReferenceError, "Circular reference detected when adding reference #{reference.addr} to #{addr}"
     end
 
-    log "Adding reference #{reference.addr} to #{addr}"
+    log "Adding reference #{reference.addr} to #{addr} (is range cell? #{reference.range_cell?})"
 
     references.unique_add reference
-    reference.add_observer self
+    reference.add_observer CellReference.new(self, is_range_cell: reference.range_cell?)
 
     if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
       self.max_reference_timestamp = reference.last_evaluated_at
@@ -533,23 +551,27 @@ class CellReference
             :remove_observer,
             :spreadsheet,
             :last_evaluated_at,
+            :update_reference,
+            :references,
+            :max_reference_timestamp,
+            :max_reference_timestamp=,
+            :reset_circular_reference_check_cache,
+            :content,
+            :content=,
             to: :cell
 
-  def initialize(cell, addr)
+  def initialize(cell, addr: cell.addr.addr, is_range_cell: false)
     raise IllegalCellReference unless addr.to_s =~ CellAddress::CELL_COORD_WITH_PARENS_REG_EXP
 
     @cell            = cell
     @is_absolute_col = $1 == '$'
     @is_absolute_row = $3 == '$'
+    @is_range_cell   = is_range_cell
   end
 
-  def absolute_col?
-    @is_absolute_col
-  end
-
-  def absolute_row?
-    @is_absolute_row
-  end
+  def absolute_col?; @is_absolute_col; end
+  def absolute_row?; @is_absolute_row; end
+  def range_cell?;   @is_range_cell;   end
 
   def full_addr
     col, row = cell.addr.col_and_row
@@ -584,7 +606,8 @@ class CellReference
     when CellReference then
       cell == another_cell_or_cell_reference.cell &&
         absolute_col? == another_cell_or_cell_reference.absolute_col? &&
-        absolute_row? == another_cell_or_cell_reference.absolute_row?
+        absolute_row? == another_cell_or_cell_reference.absolute_row? &&
+        range_cell?   == another_cell_or_cell_reference.range_cell?
     when Cell then
       cell == another_cell_or_cell_reference
     when String, Symbol then
@@ -1141,12 +1164,13 @@ def run!
 
   spreadsheet.set :A1, 1
   a2 = spreadsheet.set(:A2, '=A1+1')
-  a2.copy_to_range 'A3:A100'
-  spreadsheet.set :A101, '=sum(A1:A100)'
-  spreadsheet.set :A102, '=average(A1:A100)'
-  spreadsheet.set :A103, '=count(A1:A100)'
-  spreadsheet.set :A104, '=min(A1:A100)'
-  spreadsheet.set :A105, '=max(A1:A100)'
+  last_row = 10
+  a2.copy_to_range "A3:A#{last_row}"
+  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
 
   spreadsheet.repl
 end

@@ -1392,10 +1392,10 @@ class TestSpreadsheet < Test::Unit::TestCase
       setup do
         @c3 = @spreadsheet.find_or_create_cell(:C3)
 
-        @c3_cw_rel_rel = CellReference.new(@c3, 'C3')
-        @c3_cw_rel_abs = CellReference.new(@c3, 'C$3')
-        @c3_cw_abs_rel = CellReference.new(@c3, '$C3')
-        @c3_cw_abs_abs = CellReference.new(@c3, '$C$3')
+        @c3_cw_rel_rel = CellReference.new(@c3, addr: 'C3')
+        @c3_cw_rel_abs = CellReference.new(@c3, addr: 'C$3')
+        @c3_cw_abs_rel = CellReference.new(@c3, addr: '$C3')
+        @c3_cw_abs_abs = CellReference.new(@c3, addr: '$C$3')
       end
 
       test '#absolute_col?' do
