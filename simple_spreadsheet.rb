@@ -260,7 +260,7 @@ class Cell
 
       # Replace cell relative or absolute addresses by template variables with relative addresses (e.g. 'A1', 'A$1', '$A1' or '$A$1' by
       # '%{A1}').
-      @evaluatable_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
+      @evaluatable_content.gsub! /(#{CellAddress::CELL_COORD})/i, '%{\1}'
 
       new_references = find_references
 
@@ -324,8 +324,9 @@ class Cell
 
           evaluated_content = evaluatable_content[1..-1]
 
-          # Remove all range cell delimiters before evaluating the formula.
+          # Remove all range cell delimiters and address absolute markers ('$') before evaluating the formula.
           evaluated_content.gsub! RANGE_CELL_DELIMITER, ''
+          evaluated_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '\2\4'
 
           # Build a hash of all formula references with their corresponding values (e.g. `{ A1: 10, A2: 20 }`).
           references_hash = references.inject Hash.new do |memo, ref|
