@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = true
+  DEBUG = false
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -154,6 +154,10 @@ class CellAddress
     addr == (other_addr.is_a?(CellAddress) ? other_addr.addr : normalize_addr(other_addr))
   end
 
+  def delimit(delimiter)
+    [delimiter, addr, delimiter].join
+  end
+
   def self.normalize_addr(addr)
     parse_addr(addr).join.to_sym
   end
@@ -187,7 +191,7 @@ end
 
 class Cell
   DEFAULT_VALUE        = 0
-  RANGE_CELL_DELIMITER = '≤≥'
+  RANGE_CELL_DELIMITER = '∫'
 
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
@@ -250,18 +254,15 @@ class Cell
       @evaluatable_content[1..-1].scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
-                                      '[' + row.map { |addr| [RANGE_CELL_DELIMITER, addr, RANGE_CELL_DELIMITER].join }.join(', ') + ']'
+                                      '[' + row.map { |addr| addr.delimit(RANGE_CELL_DELIMITER) }.join(', ') + ']'
                                     }.join(', ') + ']'
       end
-
-      new_references = find_references
-
-      # Remove all range cell delimiters.
-      @evaluatable_content.gsub! RANGE_CELL_DELIMITER, ''
 
       # Replace cell relative or absolute addresses by template variables with relative addresses (e.g. 'A1', 'A$1', '$A1' or '$A$1' by
       # '%{A1}').
       @evaluatable_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '%{\2\4}'
+
+      new_references = find_references
 
       log "References found: #{new_references.map(&:full_addr).join(', ')}"
     end
@@ -291,11 +292,15 @@ class Cell
     return [] unless formula?
 
     delimiter_re = Regexp.escape(RANGE_CELL_DELIMITER)
-    re           = /(#{delimiter_re})?(#{CellAddress::CELL_COORD})(#{delimiter_re})?/i
+    re           = /(#{delimiter_re})?%\{(#{CellAddress::CELL_COORD})\}(#{delimiter_re})?/i
 
     evaluatable_content[1..-1].scan(re).inject [] do |memo, (delimiter1, addr, delimiter2)|
       cell           = spreadsheet.find_or_create_cell(addr)
-      cell_reference = CellReference.new(cell, addr: addr, is_range_cell: !!(delimiter1 && delimiter2))
+      cell_reference = CellReference.new(
+        cell,
+        addr: addr,
+        is_range_cell: delimiter1 == RANGE_CELL_DELIMITER && delimiter2 == RANGE_CELL_DELIMITER
+      )
 
       memo.unique_add cell_reference
     end
@@ -318,6 +323,9 @@ class Cell
           log ">>> Calculating formula for #{addr}"
 
           evaluated_content = evaluatable_content[1..-1]
+
+          # Remove all range cell delimiters before evaluating the formula.
+          evaluated_content.gsub! RANGE_CELL_DELIMITER, ''
 
           # Build a hash of all formula references with their corresponding values (e.g. `{ A1: 10, A2: 20 }`).
           references_hash = references.inject Hash.new do |memo, ref|
