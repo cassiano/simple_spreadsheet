@@ -92,7 +92,7 @@ class CellAddress
     addr[0] = col_addr_name(addr[0]) if addr[0].is_a?(Fixnum)
     addr    = addr.join
 
-    raise IllegalCellReference unless addr =~ /^#{CellAddress::CELL_COORD}$/i
+    raise IllegalCellReference, "Illegal cell reference `#{addr}`" unless addr =~ /^#{CellAddress::CELL_COORD}$/i
 
     @addr = normalize_addr(addr)
   end
@@ -221,12 +221,12 @@ class Cell
     observers.delete observer
   end
 
-  def content=(new_content)
+  def content=(new_content, forced_refresh: false)
     log "Replacing content `#{content}` with new content `#{new_content}` in cell #{addr}"
 
     new_content.strip! if new_content.is_a?(String)
 
-    # return if content == new_content
+    return if content == new_content unless forced_refresh
 
     old_references = references.clone
     new_references = []
@@ -247,7 +247,7 @@ class Cell
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @evaluatable_content[1..-1].scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
+      @evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
                                       '[' + row.map { |addr| addr.addr.downcase }.join(', ') + ']'
@@ -286,15 +286,19 @@ class Cell
     end
   end
 
+  def refresh_content
+    send :content=, content, forced_refresh: true
+  end
+
   def find_references
     return [] unless formula?
 
-    evaluatable_content[1..-1].scan(/%\{(#{CellAddress::CELL_COORD})\}/i).inject [] do |memo, (addr)|
+    evaluatable_content.scan(/%\{(#{CellAddress::CELL_COORD})\}/i).inject [] do |memo, (addr)|
       cell           = spreadsheet.find_or_create_cell(addr)
       cell_reference = CellReference.new(
         cell,
         addr: addr,
-        is_range_cell: !!(addr =~ Regexp.new(CellAddress::CELL_COORD_LOWER_CASE))
+        is_range: !!(addr =~ Regexp.new(CellAddress::CELL_COORD_LOWER_CASE))
       )
 
       memo.unique_add cell_reference
@@ -408,7 +412,7 @@ class Cell
     spreadsheet.set dest_addr, dest_content
   end
 
-  def move_to!(dest_addr)
+  def move_to!(dest_addr, update_ranges_mode: false)
     dest_addr = CellAddress.self_or_new(dest_addr)
 
     return if dest_addr == addr
@@ -420,31 +424,44 @@ class Cell
 
     log "#{addr.addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
 
-    # Notice we have to clone the `observers` collection prior to iterating in it, because it may change during the iteration.
+    # Notice we have to clone the `observers` collection prior to iterating over it, because it may change during the iteration.
     observers.clone.each do |observer|
-      if observer.range_cell?
-        # Force content to be rechecked.
-        observer.content = observer.content
+      if observer.range?
+        # Force content to be refreshed/rechecked.
+        observer.refresh_content
       else
         observer.update_reference source_addr, dest_addr
       end
     end
+
+    if update_ranges_mode
+      if formula?
+        content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
+          upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr),  addr: upper_left_addr)
+          lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr), addr: lower_right_addr)
+
+          self.content = content.
+            gsub(/(?<![A-Z])#{Regexp.escape(upper_left_addr)}(?![0-9])/i,  upper_left_cell.new_addr(source_addr, dest_addr)).
+            gsub(/(?<![A-Z])#{Regexp.escape(lower_right_addr)}(?![0-9])/i, lower_right_cell.new_addr(source_addr, dest_addr))
+        end
+      end
+    end
   end
 
-  def move_right!(col_count = 1)
-    move_to! addr.right_neighbor(col_count)
+  def move_right!(col_count = 1, update_ranges_mode: false)
+    move_to! addr.right_neighbor(col_count), update_ranges_mode: update_ranges_mode
   end
 
-  def move_left!(col_count = 1)
-    move_to! addr.left_neighbor(col_count)
+  def move_left!(col_count = 1, update_ranges_mode: false)
+    move_to! addr.left_neighbor(col_count), update_ranges_mode: update_ranges_mode
   end
 
-  def move_down!(row_count = 1)
-    move_to! addr.lower_neighbor(row_count)
+  def move_down!(row_count = 1, update_ranges_mode: false)
+    move_to! addr.lower_neighbor(row_count), update_ranges_mode: update_ranges_mode
   end
 
-  def move_up!(row_count = 1)
-    move_to! addr.upper_neighbor(row_count)
+  def move_up!(row_count = 1, update_ranges_mode: false)
+    move_to! addr.upper_neighbor(row_count), update_ranges_mode: update_ranges_mode
   end
 
   def update_reference(old_addr, new_addr)
@@ -497,10 +514,10 @@ class Cell
       raise CircularReferenceError, "Circular reference detected when adding reference #{reference.addr} to #{addr}"
     end
 
-    log "Adding reference #{reference.addr} to #{addr} (is range cell? #{reference.range_cell?})"
+    log "Adding reference #{reference.addr} to #{addr} (range? #{reference.range?})"
 
     references.unique_add reference
-    reference.add_observer CellReference.new(self, is_range_cell: reference.range_cell?)
+    reference.add_observer CellReference.new(self, is_range: reference.range?)
 
     if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
       self.max_reference_timestamp = reference.last_evaluated_at
@@ -563,20 +580,21 @@ class CellReference
             :reset_circular_reference_check_cache,
             :content,
             :content=,
+            :refresh_content,
             to: :cell
 
-  def initialize(cell, addr: cell.addr.addr, is_range_cell: false)
+  def initialize(cell, addr: cell.addr.addr, is_range: false)
     raise IllegalCellReference unless addr.to_s =~ CellAddress::CELL_COORD_WITH_PARENS_REG_EXP
 
     @cell            = cell
     @is_absolute_col = $1 == '$'
     @is_absolute_row = $3 == '$'
-    @is_range_cell   = is_range_cell
+    @is_range   = is_range
   end
 
   def absolute_col?; @is_absolute_col; end
   def absolute_row?; @is_absolute_row; end
-  def range_cell?;   @is_range_cell;   end
+  def range?;   @is_range;   end
 
   def full_addr
     col, row = cell.addr.col_and_row
@@ -592,8 +610,8 @@ class CellReference
 
   # Calculates a cell's new reference when an observer cell is copied from `observer_source_addr` to `observer_dest_addr`.
   def new_addr(observer_source_addr, observer_dest_addr)
-    col_diff = absolute_col? ? 0 : observer_dest_addr.col_index  - observer_source_addr.col_index
-    row_diff = absolute_row? ? 0 : observer_dest_addr.row        - observer_source_addr.row
+    col_diff = absolute_col? ? 0 : observer_dest_addr.col_index - observer_source_addr.col_index
+    row_diff = absolute_row? ? 0 : observer_dest_addr.row       - observer_source_addr.row
 
     target_addr = addr.right_neighbor(col_diff).lower_neighbor(row_diff)
 
@@ -612,7 +630,7 @@ class CellReference
       cell == another_cell_or_cell_reference.cell &&
         absolute_col? == another_cell_or_cell_reference.absolute_col? &&
         absolute_row? == another_cell_or_cell_reference.absolute_row? &&
-        range_cell?   == another_cell_or_cell_reference.range_cell?
+        range?   == another_cell_or_cell_reference.range?
     when Cell then
       cell == another_cell_or_cell_reference
     when String, Symbol then
@@ -722,7 +740,7 @@ class Spreadsheet
 
     cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_right! count
+        cell.move_right! count, update_ranges_mode: true
       end
     end
   end
@@ -734,7 +752,7 @@ class Spreadsheet
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_left! count
+        cell.move_left! count, update_ranges_mode: true
       end
     end
   end
@@ -742,7 +760,7 @@ class Spreadsheet
   def add_row(row_to_add, count = 1)
     cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_down! count
+        cell.move_down! count, update_ranges_mode: true
       end
     end
   end
@@ -752,7 +770,7 @@ class Spreadsheet
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_up! count
+        cell.move_up! count, update_ranges_mode: true
       end
     end
   end
@@ -768,7 +786,7 @@ class Spreadsheet
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_right! dest_col - source_col
+          cell.move_right! dest_col - source_col, update_ranges_mode: true
         end
       end
 
@@ -780,7 +798,7 @@ class Spreadsheet
 
       cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_left! source_col - dest_col
+          cell.move_left! source_col - dest_col, update_ranges_mode: true
         end
       end
 
@@ -796,7 +814,7 @@ class Spreadsheet
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_down! dest_row - source_row
+          cell.move_down! dest_row - source_row, update_ranges_mode: true
         end
       end
 
@@ -808,7 +826,7 @@ class Spreadsheet
 
       cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_up! source_row - dest_row
+          cell.move_up! source_row - dest_row, update_ranges_mode: true
         end
       end
 
@@ -1107,6 +1125,7 @@ class Spreadsheet
         puts "Error: `#{e}`."
         puts 'Stack trace:'
         puts e.backtrace
+        exit
       end
 
       consistent?
@@ -1151,31 +1170,31 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
-  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  # a3 = spreadsheet.set(:A3, 1)
-  # a4 = spreadsheet.set(:A4, '=A3+1')
-  # a4.copy_to_range 'A5:A20'
-  # b3 = spreadsheet.set(:B3, 1)
-  # b4 = spreadsheet.set(:B4, 1)
-  # b5 = spreadsheet.set(:B5, '=B3+B4')
-  # b5.copy_to_range 'B6:B20'
-  #
-  # # Factorials.
-  # c1 = spreadsheet.set(:C1, 'Factorials:')
-  # c3 = spreadsheet.set(:C3, 1)
-  # c4 = spreadsheet.set(:C4, '=A4*C3')
-  # c4.copy_to_range 'C5:C20'
+  # Fibonacci sequence.
+  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  a3 = spreadsheet.set(:A3, 1)
+  a4 = spreadsheet.set(:A4, '=A3+1')
+  a4.copy_to_range 'A5:A20'
+  b3 = spreadsheet.set(:B3, 1)
+  b4 = spreadsheet.set(:B4, 1)
+  b5 = spreadsheet.set(:B5, '=B3+B4')
+  b5.copy_to_range 'B6:B20'
 
-  spreadsheet.set :A1, 1
-  a2 = spreadsheet.set(:A2, '=A1+1')
-  last_row = 10
-  a2.copy_to_range "A3:A#{last_row}"
-  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  # Factorials.
+  c1 = spreadsheet.set(:C1, 'Factorials:')
+  c3 = spreadsheet.set(:C3, 1)
+  c4 = spreadsheet.set(:C4, '=A4*C3')
+  c4.copy_to_range 'C5:C20'
+
+  # spreadsheet.set :A1, 1
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # last_row = 10
+  # a2.copy_to_range "A3:A#{last_row}"
+  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
 
   spreadsheet.repl
 end
