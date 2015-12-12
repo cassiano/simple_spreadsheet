@@ -244,7 +244,7 @@ class Cell
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
+      @evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
                                       '[' + row.map { |addr| addr.addr.downcase }.join(', ') + ']'
@@ -276,7 +276,7 @@ class Cell
   def find_references
     return [] unless formula?
 
-    evaluatable_content.scan(/%\{(#{CellAddress::CELL_COORD})\}/i).inject [] do |memo, (addr)|
+    evaluatable_content.scan(/%\{(#{CellAddress::CELL_COORD})\}/i).uniq.inject [] do |memo, (addr)|
       cell           = spreadsheet.find_or_create_cell(addr)
       cell_reference = CellReference.new(
         cell,
@@ -427,7 +427,7 @@ class Cell
       if formula?
         new_content = self.content.clone
 
-        content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).each do |(range, upper_left_addr, lower_right_addr)|
+        content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
           upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
           lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
 
