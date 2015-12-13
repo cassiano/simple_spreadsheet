@@ -1179,33 +1179,31 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '#move_to! should work with relative references' do
-        old_a1 = @spreadsheet.set(:A1, 1)
-        a2     = @spreadsheet.set(:A2, 2)
-        a3     = @spreadsheet.set(:A3, '= A1 + A2')
-        a4     = @spreadsheet.set(:A4, '= A3')
+        a1 = @spreadsheet.set(:A1, 1)
+        a2 = @spreadsheet.set(:A2, 2)
+        a3 = @spreadsheet.set(:A3, '= A1 + A2')
+        a4 = @spreadsheet.set(:A4, '= A3')
 
         assert_equal (a3_value = 1 + 2), a3.eval
 
         a3_last_evaluated_at = a3.last_evaluated_at
         a4_last_evaluated_at = a4.last_evaluated_at
 
-        assert_equal [a3], old_a1.observers
+        assert_equal [a3], a1.observers
 
         # Move A1 to C5, so (old) A1 actually "becomes" C5.
-        old_a1.move_to! :C5
+        a1.move_to! :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         c5 = @spreadsheet.find_or_create_cell(:C5)
-        assert_equal old_a1, c5
         assert_equal '= C5 + A2', a3.content
-        assert_equal [c5, a2], a3.references
+        assert_equal [a2, c5], a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 
         # Assert (new) A1 cell is empty and has no (more) observers.
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
-        assert_equal [], new_a1.observers
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal [], a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
         assert_equal [a3], c5.observers
@@ -1215,32 +1213,30 @@ class TestSpreadsheet < Test::Unit::TestCase
       end
 
       test '#move_to! should work with absolute references as well' do
-        old_a1 = @spreadsheet.set(:A1, 1)
-        a2     = @spreadsheet.set(:A2, 2)
-        a3     = @spreadsheet.set(:A3, '= $A1 + A$2')
-        a4     = @spreadsheet.set(:A4, '= $A$3')
+        a1 = @spreadsheet.set(:A1, 1)
+        a2 = @spreadsheet.set(:A2, 2)
+        a3 = @spreadsheet.set(:A3, '= $A1 + A$2')
+        a4 = @spreadsheet.set(:A4, '= $A$3')
 
         assert_equal (a3_value = 1 + 2), a3.eval
 
         a3_last_evaluated_at = a3.last_evaluated_at
         a4_last_evaluated_at = a4.last_evaluated_at
 
-        assert_equal [a3], old_a1.observers
+        assert_equal [a3], a1.observers
 
-        old_a1.move_to! :C5
+        a1.move_to! :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         c5 = @spreadsheet.find_or_create_cell(:C5)
-        assert_equal old_a1, c5
         assert_equal '= $C5 + A$2', a3.content
-        assert_equal [c5, a2], a3.references
+        assert_equal [a2, c5], a3.references
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 
         # Assert (new) A1 cell is empty and has no (more) observers.
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
-        assert_equal [], new_a1.observers
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal [], a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
         assert_equal [a3], c5.observers
@@ -1272,12 +1268,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a1.move_right!
 
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        b1     = @spreadsheet.find_or_create_cell(:B1)
+        b1 = @spreadsheet.find_or_create_cell(:B1)
 
-        assert_equal a1, b1
         assert_equal 1, b1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test '#move_right! should allow to move more that 1 column (default value)' do
@@ -1285,12 +1279,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a1.move_right! 4
 
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        e1     = @spreadsheet.find_or_create_cell(:E1)
+        e1 = @spreadsheet.find_or_create_cell(:E1)
 
-        assert_equal a1, e1
         assert_equal 1, e1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test '#move_left!' do
@@ -1298,12 +1290,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         b1.move_left!
 
-        new_b1 = @spreadsheet.find_or_create_cell(:B1)
-        a1     = @spreadsheet.find_or_create_cell(:A1)
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal a1, b1
-        assert_equal 1, b1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_b1.eval
+        assert_equal 1, a1.eval
+        assert_equal Cell::DEFAULT_VALUE, b1.eval
       end
 
       test '#move_left! should allow to move more that 1 column (default value)' do
@@ -1311,12 +1301,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         e1.move_left! 4
 
-        new_e1 = @spreadsheet.find_or_create_cell(:E1)
-        a1     = @spreadsheet.find_or_create_cell(:A1)
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal e1, a1
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_e1.eval
+        assert_equal Cell::DEFAULT_VALUE, e1.eval
       end
 
       test '#move_left! should raise an error when in leftmost cell' do
@@ -1332,12 +1320,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a1.move_down!
 
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        a2     = @spreadsheet.find_or_create_cell(:A2)
+        a2 = @spreadsheet.find_or_create_cell(:A2)
 
-        assert_equal a1, a2
         assert_equal 1, a2.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test '#move_down! should allow to move more that 1 row (default value)' do
@@ -1345,12 +1331,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a1.move_down! 4
 
-        new_a1 = @spreadsheet.find_or_create_cell(:A1)
-        a5     = @spreadsheet.find_or_create_cell(:A5)
+        a5 = @spreadsheet.find_or_create_cell(:A5)
 
-        assert_equal a1, a5
         assert_equal 1, a5.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a1.eval
+        assert_equal Cell::DEFAULT_VALUE, a1.eval
       end
 
       test '#move_up!' do
@@ -1358,12 +1342,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a2.move_up!
 
-        new_a2 = @spreadsheet.find_or_create_cell(:A2)
-        a1     = @spreadsheet.find_or_create_cell(:A1)
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal a2, a1
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a2.eval
+        assert_equal Cell::DEFAULT_VALUE, a2.eval
       end
 
       test '#move_up! should allow to move more that 1 row (default value)' do
@@ -1371,12 +1353,10 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         a5.move_up! 4
 
-        new_a5 = @spreadsheet.find_or_create_cell(:A5)
-        a1     = @spreadsheet.find_or_create_cell(:A1)
+        a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal a5, a1
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, new_a5.eval
+        assert_equal Cell::DEFAULT_VALUE, a5.eval
       end
 
       test '#move_up! should raise an error when in topmost cell' do

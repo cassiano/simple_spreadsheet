@@ -1,7 +1,7 @@
 require 'colorize'
 
 class Object
-  DEBUG = false
+  DEBUG = true
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -148,7 +148,7 @@ class CellAddress
   end
 
   def to_s
-    addr.to_s
+    addr.upcase.to_s
   end
 
   def ==(other_addr)
@@ -326,7 +326,9 @@ class Cell
 
           # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
           # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
-          Formula.instance_eval { eval evaluated_content % references_hash }
+          Formula.instance_eval { eval evaluated_content % references_hash }.tap do |value|
+            log "Formula value for #{addr}: #{value}"
+          end
         else
           content
         end
@@ -402,30 +404,15 @@ class Cell
   end
 
   def move_to!(dest_addr, update_ranges_mode: false, direction: nil, affected_cols: nil, affected_rows: nil)
+    log "Moving #{addr} to #{dest_addr}"
+
     dest_addr = CellAddress.self_or_new(dest_addr)
 
     return if dest_addr == addr
 
-    source_addr = addr
-    @addr       = dest_addr
-
-    spreadsheet.move_cell source_addr, dest_addr
-
-    log "#{addr.addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
-
-    # Notice we have to clone the `observers` collection prior to iterating over it, because it may change during the iteration.
-    observers.clone.each do |observer|
-      if observer.range?
-        # Force content to be refreshed/rechecked.
-        observer.refresh_content
-      else
-        observer.update_reference source_addr, dest_addr
-      end
-    end
-
-    if update_ranges_mode
-      if formula?
-        new_content = self.content.clone
+    if formula?
+      if update_ranges_mode
+        new_content = content.clone
 
         content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
           upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
@@ -437,13 +424,9 @@ class Cell
               upper_left_col  = CellAddress.col_addr_index(upper_left_col)
               lower_right_col = CellAddress.col_addr_index(lower_right_col)
 
-              log "move_to!: `#{[upper_left_col..lower_right_col, affected_cols].inspect}`"
-
               # Skip update if the range's columns are not entirely within the affected columns.
               ((upper_left_col..lower_right_col).to_a - affected_cols.to_a).any?
             when :up, :down
-              log "move_to!: `#{[upper_left_row..lower_right_row, affected_rows].inspect}`"
-
               # Skip update if the range's rows are not entirely within the affected rows.
               ((upper_left_row..lower_right_row).to_a - affected_rows.to_a).any?
             end
@@ -456,17 +439,31 @@ class Cell
           upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr),  addr: upper_left_addr)
           lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr), addr: lower_right_addr)
 
-          upper_left_cell_new_addr  = upper_left_cell.new_addr(source_addr, dest_addr)
-          lower_right_cell_new_addr = lower_right_cell.new_addr(source_addr, dest_addr)
+          upper_left_cell_new_addr  = upper_left_cell.new_addr(addr, dest_addr)
+          lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
 
           log "Updating range `#{range}` to `#{upper_left_cell_new_addr}:#{lower_right_cell_new_addr}`"
 
-          new_content.gsub!(/(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell_new_addr, lower_right_cell_new_addr].join(':'))
+          new_content.gsub! /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell_new_addr, lower_right_cell_new_addr].join(':')
         end
-
-        refresh_content new_content
+      else
+        new_content = content.clone
       end
+    else
+      new_content = content
     end
+
+    spreadsheet.set dest_addr, new_content
+
+    log "#{addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
+
+    # Update all non-range observers so they refer to the new address.
+    observers.reject(&:range?).each do |observer|
+      observer.update_reference addr, dest_addr
+    end
+
+    # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
+    self.content = nil
   end
 
   def move_right!(col_count = 1, update_ranges_mode: false, affected_cols: nil)
@@ -492,7 +489,7 @@ class Cell
     new_col, new_row = CellAddress.parse_addr(new_addr)
 
     # Do not use gsub! (since the setter won't be called).
-    self.content = self.content.gsub(/(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i) { [$1, new_col, $2, new_row].join }
+    self.content = content.gsub(/(?<![A-Z:])(\$?)#{old_col}(\$?)#{old_row}(?![0-9:])/i) { [$1, new_col, $2, new_row].join }
   end
 
   def formula?
@@ -696,33 +693,31 @@ end
 
 class Formula
   def self.sum(*cell_values)
-    log "Calling sum() for #{cell_values.inspect}"
-
     cell_values.flatten.inject :+
   end
 
   def self.count(*cell_values)
-    log "Calling count() for #{cell_values.inspect}"
-
     cell_values.flatten.size
   end
 
   def self.average(*cell_values)
-    log "Calling average() for #{cell_values.inspect}"
-
     sum(cell_values) * 1.0 / count(cell_values)
   end
 
   def self.max(*cell_values)
-    log "Calling max() for #{cell_values.inspect}"
-
     cell_values.flatten.max
   end
 
   def self.min(*cell_values)
-    log "Calling min() for #{cell_values.inspect}"
-
     cell_values.flatten.min
+  end
+
+  def self.num_rows(*cell_values)
+    cell_values[0].size
+  end
+
+  def self.num_cols(*cell_values)
+    cell_values[0][0].size
   end
 end
 
@@ -904,24 +899,43 @@ class Spreadsheet
 
   def consistent?
     cells[:all].all? do |(_, cell)|
+      log "Checking #{cell.addr} consistency"
+
+      log "Checking references and corresponding observers"
+
       consistent =
         if cell.formula?
           cell_references = cell.find_references
 
-          cell_references == cell.references && cell.references.all? do |reference|
+          log "Checking if references found (#{cell_references.map(&:addr).join(', ')}) correspond " +
+              "to stored ones (#{cell.references.map(&:addr).join(', ')})"
+
+          cell_references.size == cell.references.size && (cell_references.map(&:addr) - cell.references.map(&:addr)).empty? && cell.references.all? do |reference|
+            log "Checking if #{reference.addr} reference's observers include it"
+
             reference.observers.include? cell
           end
         else
+          log "Checking if stored references is empty"
+
           cell.references.empty?
         end
 
+      log "Error(s) detected" unless consistent
+
       next false unless consistent
+
+      log "Checking observers"
 
       consistent = cell.observers.all? do |observer|
         observer.references.include? cell
       end
 
+      log "Error(s) detected" unless consistent
+
       next false unless consistent
+
+      log "Checking spreadsheet data structures"
 
       col = cell.addr.col_index
       row = cell.addr.row
@@ -929,6 +943,8 @@ class Spreadsheet
       consistent =
         cells[:by_col][col] && cells[:by_col][col][row] == cell &&
         cells[:by_row][row] && cells[:by_row][row][col] == cell
+
+      log "Error(s) detected" unless consistent
 
       next false unless consistent
 
@@ -1161,10 +1177,10 @@ class Spreadsheet
           copy_row source_row, dest_row, row_count
 
         when 'Q' then
-          break;
+          exit
 
         else
-          next;
+          next
         end
 
       rescue StandardError => e
@@ -1174,7 +1190,10 @@ class Spreadsheet
         exit
       end
 
-      consistent?
+      unless consistent?
+        puts "Sorry, but the spreadsheet became inconsistent! Exiting now..."
+        exit
+      end
     end
   end
 
