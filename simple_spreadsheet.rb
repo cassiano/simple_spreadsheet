@@ -2,7 +2,7 @@ require 'colorize'
 require 'json'
 
 class Object
-  DEBUG = true
+  DEBUG = false
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -193,7 +193,7 @@ class Cell
   # List of possible exceptions.
   class CircularReferenceError < StandardError; end
 
-  attr_reader   :spreadsheet, :addr, :references, :observers, :content, :evaluatable_content, :last_evaluated_at
+  attr_reader   :spreadsheet, :addr, :references, :observers, :content, :evaluatable_content, :last_evaluated_at, :eval_error
   attr_accessor :max_reference_timestamp
 
   def initialize(spreadsheet, addr, content = nil)
@@ -206,6 +206,7 @@ class Cell
     @references              = []
     @observers               = []
     @max_reference_timestamp = nil
+    @eval_error              = nil
 
     self.content = content
   end
@@ -267,15 +268,9 @@ class Cell
       log "Evaluatable content before finding references: `#{@evaluatable_content}`"
     end
 
-    begin
-      sync_references
+    sync_references unless formula?
 
-      eval true
-    rescue StandardError => e
-      @evaluated_content, @content, @evaluatable_content = "Error '#{e.message}': `#{@evaluatable_content}`"
-
-      remove_all_references
-    end
+    eval true
   end
 
   def refresh_content(new_content = content)
@@ -309,6 +304,8 @@ class Cell
     end
 
     @evaluated_content ||= begin
+      @eval_error = nil
+
       new_evaluated_content =
         if formula?
           log "Calculating formula for #{addr}"
@@ -320,23 +317,36 @@ class Cell
 
           # Synchronize all references, since they may have changed and the references in `references` may not be the same as the ones
           # which are currently present in `evaluated_content`.
-          sync_references
-
-          references_hash = references.inject Hash.new do |memo, ref|
-            ref_value = ref.eval.to_s
-
-            memo[ref.addr.addr]           = ref_value
-            memo[ref.addr.addr.downcase]  = ref_value
-
-            memo
+          begin
+            sync_references
+          rescue StandardError => e
+            @eval_error = e.message
           end
 
-          log "References hash: #{references_hash.inspect}"
+          # Evaluate the cell only if all references are valid.
+          if valid? && references.all?(&:valid?)
+            references_hash = references.inject Hash.new do |memo, reference|
+              reference_value = reference.eval.to_s
 
-          # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
-          # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
-          Formula.instance_eval { eval evaluated_content % references_hash }.tap do |value|
-            log "Formula value for #{addr}: #{value}"
+              memo[reference.addr.addr]           = reference_value
+              memo[reference.addr.addr.downcase]  = reference_value
+
+              memo
+            end
+
+            log "References hash: #{references_hash.inspect}"
+
+            # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
+            # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
+            begin
+              Formula.instance_eval { eval evaluated_content % references_hash }.tap do |value|
+                log "Formula value for #{addr}: #{value}"
+              end
+            rescue StandardError => e
+              @eval_error = e.message
+            end
+          else
+            @eval_error ||= references.find(&:invalid?).eval_error
           end
         else
           content
@@ -351,6 +361,14 @@ class Cell
     fire_observers if previous_content != @evaluated_content
 
     @evaluated_content || DEFAULT_VALUE
+  end
+
+  def valid?
+    eval_error.nil?
+  end
+
+  def invalid?
+    !valid?
   end
 
   def reset_circular_reference_check_cache
@@ -559,7 +577,7 @@ class Cell
 
   def add_reference(reference)
     if reference.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular reference detected when adding reference #{reference.addr} to #{addr}"
+      raise CircularReferenceError, "Circular ref. when adding #{reference.addr} to #{addr}"
     end
 
     log "Adding reference #{reference.addr} to #{addr} (range? #{reference.range?})"
@@ -629,6 +647,9 @@ class CellReference
             :content,
             :content=,
             :refresh_content,
+            :eval_error,
+            :valid?,
+            :invalid?,
             to: :cell
 
   def initialize(cell, addr: cell.addr.addr, is_range: false)
@@ -758,7 +779,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 30
+  PP_CELL_SIZE     = 50
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -939,50 +960,54 @@ class Spreadsheet
 
       log "Checking references and corresponding observers"
 
-      consistent =
-        if cell.formula?
-          cell_references = cell.find_references
+      if cell.valid?
+        consistent =
+          if cell.formula?
+            cell_references = cell.find_references
 
-          log "Checking if references found (#{cell_references.map(&:addr).join(', ')}) correspond " +
-              "to stored ones (#{cell.references.map(&:addr).join(', ')})"
+            log "Checking if references found (#{cell_references.map(&:addr).join(', ')}) correspond " +
+                "to stored ones (#{cell.references.map(&:addr).join(', ')})"
 
-          cell_references.size == cell.references.size && (cell_references.map(&:addr) - cell.references.map(&:addr)).empty? && cell.references.all? do |reference|
-            log "Checking if #{reference.addr} reference's observers include it"
+            cell_references.size == cell.references.size && (cell_references.map(&:addr) - cell.references.map(&:addr)).empty? && cell.references.all? do |reference|
+              log "Checking if #{reference.addr} reference's observers include it"
 
-            reference.observers.include? cell
+              reference.observers.include? cell
+            end
+          else
+            log "Checking if stored references is empty"
+
+            cell.references.empty?
           end
-        else
-          log "Checking if stored references is empty"
 
-          cell.references.empty?
+        log "Error(s) detected" unless consistent
+
+        next false unless consistent
+
+        log "Checking observers"
+
+        consistent = cell.observers.all? do |observer|
+          observer.references.include? cell
         end
 
-      log "Error(s) detected" unless consistent
+        log "Error(s) detected" unless consistent
 
-      next false unless consistent
+        next false unless consistent
 
-      log "Checking observers"
+        log "Checking spreadsheet data structures"
 
-      consistent = cell.observers.all? do |observer|
-        observer.references.include? cell
+        col = cell.addr.col_index
+        row = cell.addr.row
+
+        consistent =
+          cells[:by_col][col] && cells[:by_col][col][row] == cell &&
+          cells[:by_row][row] && cells[:by_row][row][col] == cell
+
+        log "Error(s) detected" unless consistent
+
+        next false unless consistent
+      else
+        log "Bypassing further checkings for this cell, because it is invalid (error message: `#{cell.eval_error}`)."
       end
-
-      log "Error(s) detected" unless consistent
-
-      next false unless consistent
-
-      log "Checking spreadsheet data structures"
-
-      col = cell.addr.col_index
-      row = cell.addr.row
-
-      consistent =
-        cells[:by_col][col] && cells[:by_col][col][row] == cell &&
-        cells[:by_row][row] && cells[:by_row][row][col] == cell
-
-      log "Error(s) detected" unless consistent
-
-      next false unless consistent
 
       true
     end
@@ -1032,11 +1057,11 @@ class Spreadsheet
             text =
               if cell.formula?
                 # Highlight cell if value has changed.
-                highlight_cell = last_change && cell.last_evaluated_at > last_change
+                highlight_cell = last_change && cell.last_evaluated_at && cell.last_evaluated_at > last_change
 
-                lrjust.call("`#{cell.content}`", value.to_s, PP_CELL_SIZE)
+                lrjust.call("`#{cell.content}`", cell.eval_error || value.to_s, PP_CELL_SIZE)
               else
-                value.to_s.rjust(PP_CELL_SIZE)
+                (cell.eval_error || value.to_s).rjust(PP_CELL_SIZE)
               end
 
             print highlight_cell ? text.truncate(PP_CELL_SIZE).blue.on_light_white : text.truncate(PP_CELL_SIZE)

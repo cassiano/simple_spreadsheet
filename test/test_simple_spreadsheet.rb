@@ -998,13 +998,13 @@ class TestSpreadsheet < Test::Unit::TestCase
 
           a5 = @spreadsheet.set(:A5, '= A1')
 
-          assert_match /Circular reference detected when adding reference A1 to A5/, a5.eval
+          assert_match /Circular ref. when adding A1 to A5/, a5.eval
         end
 
         test 'cannot have auto references' do
           a1 = @spreadsheet.set(:A1, '= A1')
 
-          assert_match /Circular reference detected when adding reference A1 to A1/, a1.eval
+          assert_match /Circular ref. when adding A1 to A1/, a1.eval
         end
 
         test 'allow the use of buitin functions' do
