@@ -1,4 +1,5 @@
 require 'colorize'
+require 'json'
 
 class Object
   DEBUG = true
@@ -245,10 +246,18 @@ class Cell
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       @evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
+        upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
+        lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
+        upper_left_col                   = CellAddress.col_addr_index(upper_left_col)
+        lower_right_col                  = CellAddress.col_addr_index(lower_right_col)
+
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
-                                      '[' + row.map { |addr| addr.addr.downcase }.join(', ') + ']'
-                                    }.join(', ') + ']'
+                                      '[' + row.map { |addr| addr.addr.downcase }.join(',') + ']'
+                                    }.join(', ') + '],' + {
+                                      upper_left: [upper_left_col, upper_left_row],
+                                      lower_right: [lower_right_col, lower_right_row]
+                                    }.to_json
       end
 
       # Replace cell relative or absolute addresses by template variables with relative addresses (e.g. 'A1', 'A$1', '$A1' or '$A$1' by
@@ -418,29 +427,33 @@ class Cell
           upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
           lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
 
-          skip_update =
+          update_upper_left_cell =
             case direction
             when :left, :right
-              upper_left_col  = CellAddress.col_addr_index(upper_left_col)
-              lower_right_col = CellAddress.col_addr_index(lower_right_col)
+              upper_left_col = CellAddress.col_addr_index(upper_left_col)
 
-              # Skip update if the range's columns are not entirely within the affected columns.
-              ((upper_left_col..lower_right_col).to_a - affected_cols.to_a).any?
+              affected_cols.include? upper_left_col
             when :up, :down
-              # Skip update if the range's rows are not entirely within the affected rows.
-              ((upper_left_row..lower_right_row).to_a - affected_rows.to_a).any?
+              affected_rows.include? upper_left_row
             end
 
-          if skip_update
-            log "Skiping update of range `#{range}`"
-            next
-          end
+          update_lower_right_cell =
+            case direction
+            when :left, :right
+              lower_right_col = CellAddress.col_addr_index(lower_right_col)
+
+              p [affected_cols, lower_right_col]
+
+              affected_cols.include? lower_right_col
+            when :up, :down
+              affected_rows.include? lower_right_row
+            end
 
           upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr),  addr: upper_left_addr)
           lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr), addr: lower_right_addr)
 
-          upper_left_cell_new_addr  = upper_left_cell.new_addr(addr, dest_addr)
-          lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
+          upper_left_cell_new_addr  = update_upper_left_cell  ? upper_left_cell.new_addr(addr, dest_addr)  : upper_left_cell.addr
+          lower_right_cell_new_addr = update_lower_right_cell ? lower_right_cell.new_addr(addr, dest_addr) : lower_right_cell.addr
 
           log "Updating range `#{range}` to `#{upper_left_cell_new_addr}:#{lower_right_cell_new_addr}`"
 
@@ -693,31 +706,54 @@ end
 
 class Formula
   def self.sum(*cell_values)
+    extract_range_data cell_values
     cell_values.flatten.inject :+
   end
 
   def self.count(*cell_values)
+    extract_range_data cell_values
     cell_values.flatten.size
   end
 
   def self.average(*cell_values)
+    extract_range_data cell_values
     sum(cell_values) * 1.0 / count(cell_values)
   end
 
   def self.max(*cell_values)
+    extract_range_data cell_values
     cell_values.flatten.max
   end
 
   def self.min(*cell_values)
+    extract_range_data cell_values
     cell_values.flatten.min
   end
 
+  def self.num_cols(*cell_values)
+    extract_range_data cell_values
+    cell_values[0][0].size
+  end
+
   def self.num_rows(*cell_values)
+    extract_range_data cell_values
     cell_values[0].size
   end
 
-  def self.num_cols(*cell_values)
-    cell_values[0][0].size
+  def self.col_num(*cell_values)
+    range_data = extract_range_data cell_values
+    range_data && range_data[:upper_left][0]
+  end
+
+  def self.row_num(*cell_values)
+    range_data = extract_range_data cell_values
+    range_data && range_data[:upper_left][1]
+  end
+
+  private
+
+  def self.extract_range_data(cell_values)
+    cell_values.pop if cell_values.last.is_a?(Hash)
   end
 end
 
