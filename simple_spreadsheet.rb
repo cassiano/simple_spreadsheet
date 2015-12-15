@@ -58,12 +58,12 @@ class String
     if size <= limit
       self
     else
-      truncate_position = limit - 1 - delimiter.size
-
-      if truncate_position >= 0
+      if (truncate_position = limit - 1 - delimiter.size) >= 0
         self[0..truncate_position] + delimiter
+      elsif (delimiter_truncate_position = limit - 1) >= 0
+        delimiter[0..delimiter_truncate_position]
       else
-        delimiter
+        ''
       end
     end
   end
@@ -261,14 +261,13 @@ class Cell
                                     }.to_json
       end
 
-      # Replace cell relative or absolute addresses by template variables with relative addresses (e.g. 'A1', 'A$1', '$A1' or '$A$1' by
-      # '%{A1}').
+      # Replace all cell addresses by template variables (e.g. 'A1' by '%{A1}', '$A1' by '%{$A1}' etc).
       @evaluatable_content.gsub! /(#{CellAddress::CELL_COORD})/i, '%{\1}'
 
       log "Evaluatable content before finding references: `#{@evaluatable_content}`"
+    else
+      sync_references   # TODO: try to refactor this call and the one in line 320.
     end
-
-    sync_references unless formula?
 
     eval true
   end
@@ -576,10 +575,6 @@ class Cell
   end
 
   def add_reference(reference)
-    if reference.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular ref. when adding #{reference.addr} to #{addr}"
-    end
-
     log "Adding reference #{reference.addr} to #{addr} (range? #{reference.range?})"
 
     references.unique_add reference
@@ -587,6 +582,10 @@ class Cell
 
     if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
       self.max_reference_timestamp = reference.last_evaluated_at
+    end
+
+    if reference.directly_or_indirectly_references?(self)
+      raise CircularReferenceError, "Circular reference (#{reference.addr} <- #{addr})"
     end
   end
 
@@ -779,7 +778,7 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 50
+  PP_CELL_SIZE     = 30
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
 
@@ -1019,8 +1018,10 @@ class Spreadsheet
 
       if spacing_size >= 0
         ltext + ' ' * spacing_size + rtext
-      else
+      elsif rtext.size < size
         lrjust.call ltext.truncate(ltext.size + spacing_size - 1), rtext, size
+      else
+        rtext.truncate size
       end
     end
 
@@ -1059,9 +1060,9 @@ class Spreadsheet
                 # Highlight cell if value has changed.
                 highlight_cell = last_change && cell.last_evaluated_at && cell.last_evaluated_at > last_change
 
-                lrjust.call("`#{cell.content}`", cell.eval_error || value.to_s, PP_CELL_SIZE)
+                lrjust.call("`#{cell.content}`", value.to_s, PP_CELL_SIZE)
               else
-                (cell.eval_error || value.to_s).rjust(PP_CELL_SIZE)
+                value.to_s.rjust(PP_CELL_SIZE)
               end
 
             print highlight_cell ? text.truncate(PP_CELL_SIZE).blue.on_light_white : text.truncate(PP_CELL_SIZE)
@@ -1135,8 +1136,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; CN - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; CC - Copy col; CR - Copy row; Q - Quit]: ",
-          ['S', 'M', 'C', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; CN - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; CC - Copy col; CR - Copy row; SZ - Set cell size; Q - Quit]: ",
+          ['S', 'M', 'C', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SZ', 'Q'],
           'S'
         )
 
@@ -1237,6 +1238,10 @@ class Spreadsheet
 
           copy_row source_row, dest_row, row_count
 
+        when 'SZ' then
+          Spreadsheet.const_set :PP_CELL_SIZE,
+                                read_number.call("Enter new cell size (default: #{Spreadsheet::PP_CELL_SIZE}): ", Spreadsheet::PP_CELL_SIZE)
+
         when 'Q' then
           exit
 
@@ -1329,6 +1334,10 @@ def run!
   spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 8], "=num_cols(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 9], "=num_rows(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 6], "=col_num(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 7], "=row_num(B#{last_row + 7}:D#{last_row + 7})"
 
   spreadsheet.repl
 end
