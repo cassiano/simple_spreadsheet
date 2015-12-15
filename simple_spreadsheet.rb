@@ -755,12 +755,12 @@ class Formula
     cell_values.flatten.min
   end
 
-  def self.num_cols(*cell_values)
+  def self.col_count(*cell_values)
     extract_range_data cell_values
     cell_values[0][0].size
   end
 
-  def self.num_rows(*cell_values)
+  def self.row_count(*cell_values)
     extract_range_data cell_values
     cell_values[0].size
   end
@@ -1339,8 +1339,8 @@ def run!
   spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 8], "=num_cols(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 9], "=num_rows(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 8], "=col_count(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 9], "=row_count(A1:D#{last_row})"
   spreadsheet.set [:A, last_row + 6], "=col_num(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 7], "=row_num(B#{last_row + 7}:D#{last_row + 7})"
 
