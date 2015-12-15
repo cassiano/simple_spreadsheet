@@ -1,5 +1,4 @@
 require 'colorize'
-require 'json'
 
 class Object
   DEBUG = false
@@ -258,7 +257,7 @@ class Cell
                                     }.join(', ') + '],' + {
                                       upper_left: [upper_left_col, upper_left_row],
                                       lower_right: [lower_right_col, lower_right_row]
-                                    }.to_json
+                                    }.to_s
       end
 
       # Replace all cell addresses by template variables (e.g. 'A1' by '%{A1}', '$A1' by '%{$A1}' etc).
@@ -319,7 +318,7 @@ class Cell
           begin
             sync_references
           rescue StandardError => e
-            @eval_error = e.message
+            @eval_error = e
           end
 
           # Evaluate the cell only if all references are valid.
@@ -342,10 +341,12 @@ class Cell
                 log "Formula value for #{addr}: #{value}"
               end
             rescue StandardError => e
-              @eval_error = e.message
+              @eval_error = e
+              eval_error_message
             end
           else
             @eval_error ||= references.find(&:invalid?).eval_error
+            eval_error_message
           end
         else
           content
@@ -368,6 +369,10 @@ class Cell
 
   def invalid?
     !valid?
+  end
+
+  def eval_error_message
+    @eval_error && @eval_error.message
   end
 
   def reset_circular_reference_check_cache
