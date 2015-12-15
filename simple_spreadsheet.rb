@@ -586,15 +586,15 @@ class Cell
   def add_reference(reference)
     log "Adding reference #{reference.addr} to #{addr} (range? #{reference.range?})"
 
+    if reference.directly_or_indirectly_references?(self)
+      raise CircularReferenceError, "Circular reference (#{reference.addr} <- #{addr})"
+    end
+
     references.unique_add reference
     reference.add_observer CellReference.new(self, is_range: reference.range?)
 
     if reference.last_evaluated_at && (!max_reference_timestamp || reference.last_evaluated_at > max_reference_timestamp)
       self.max_reference_timestamp = reference.last_evaluated_at
-    end
-
-    if reference.directly_or_indirectly_references?(self)
-      raise CircularReferenceError, "Circular reference (#{reference.addr} <- #{addr})"
     end
   end
 
