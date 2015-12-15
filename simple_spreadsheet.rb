@@ -854,7 +854,9 @@ class Spreadsheet
 
     affected_cols = (col_to_delete + count)..last_col_index
 
-    cells[:by_col][col_to_delete].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_col][col_to_delete]
+    count.times do |i|
+      cells[:by_col][col_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_col][col_to_delete + i]
+    end
 
     cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
@@ -876,7 +878,9 @@ class Spreadsheet
   def delete_row(row_to_delete, count = 1)
     affected_rows = (row_to_delete + count)..last_row
 
-    cells[:by_row][row_to_delete].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_row][row_to_delete]
+    count.times do |i|
+      cells[:by_row][row_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_row][row_to_delete + i]
+    end
 
     cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
