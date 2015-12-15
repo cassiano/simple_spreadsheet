@@ -1069,7 +1069,7 @@ class TestSpreadsheet < Test::Unit::TestCase
       test 'have default values' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal true, a1.blank?
       end
 
       test 'have empty references and observers when created' do
@@ -1201,8 +1201,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 
-        # Assert (new) A1 cell is empty and has no (more) observers.
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        # Assert (new) A1 cell is blank and has no (more) observers.
+        assert_equal true, a1.blank?
         assert_equal [], a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
@@ -1234,8 +1234,8 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal a3_value, a3.eval
         assert_not_equal a3_last_evaluated_at, a3.last_evaluated_at
 
-        # Assert (new) A1 cell is empty and has no (more) observers.
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        # Assert (new) A1 cell is blank and has no (more) observers.
+        assert_equal true, a1.blank?
         assert_equal [], a1.observers
 
         # Assert C5 is now being observed by A3, instead of A1.
@@ -1271,7 +1271,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         b1 = @spreadsheet.find_or_create_cell(:B1)
 
         assert_equal 1, b1.eval
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal true, a1.blank?
       end
 
       test '#move_right! should allow to move more that 1 column (default value)' do
@@ -1282,7 +1282,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         e1 = @spreadsheet.find_or_create_cell(:E1)
 
         assert_equal 1, e1.eval
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal true, a1.blank?
       end
 
       test '#move_left!' do
@@ -1293,7 +1293,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, b1.eval
+        assert_equal true, b1.blank?
       end
 
       test '#move_left! should allow to move more that 1 column (default value)' do
@@ -1304,7 +1304,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, e1.eval
+        assert_equal true, e1.blank?
       end
 
       test '#move_left! should raise an error when in leftmost cell' do
@@ -1323,7 +1323,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a2 = @spreadsheet.find_or_create_cell(:A2)
 
         assert_equal 1, a2.eval
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal true, a1.blank?
       end
 
       test '#move_down! should allow to move more that 1 row (default value)' do
@@ -1334,7 +1334,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a5 = @spreadsheet.find_or_create_cell(:A5)
 
         assert_equal 1, a5.eval
-        assert_equal Cell::DEFAULT_VALUE, a1.eval
+        assert_equal true, a1.blank?
       end
 
       test '#move_up!' do
@@ -1345,7 +1345,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, a2.eval
+        assert_equal true, a2.blank?
       end
 
       test '#move_up! should allow to move more that 1 row (default value)' do
@@ -1356,7 +1356,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_equal 1, a1.eval
-        assert_equal Cell::DEFAULT_VALUE, a5.eval
+        assert_equal true, a5.blank?
       end
 
       test '#move_up! should raise an error when in topmost cell' do

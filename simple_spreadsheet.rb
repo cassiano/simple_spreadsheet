@@ -375,6 +375,10 @@ class Cell
     @eval_error && @eval_error.message
   end
 
+  def blank?
+    @evaluated_content.nil?
+  end
+
   def reset_circular_reference_check_cache
     return unless @directly_or_indirectly_references
 
@@ -611,6 +615,9 @@ class Cell
     if reference.last_evaluated_at && max_reference_timestamp && reference.last_evaluated_at == max_reference_timestamp
       self.max_reference_timestamp = find_max_reference_timestamp
     end
+
+    # Physically remove reference if blank and no other cells point to it.
+    spreadsheet.delete_cell_addr(reference.addr) if reference.blank? && reference.observers.empty?
   end
 
   def add_references(new_references)
@@ -654,6 +661,7 @@ class CellReference
             :eval_error,
             :valid?,
             :invalid?,
+            :blank?,
             to: :cell
 
   def initialize(cell, addr: cell.addr.addr, is_range: false)
@@ -1056,7 +1064,7 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
-            value = cell.eval
+            value = cell.eval unless cell.blank?
 
             highlight_cell = false
 
@@ -1268,14 +1276,6 @@ class Spreadsheet
     end
   end
 
-  private
-
-  def find_cell_addr(addr)
-    addr = CellAddress.self_or_new(addr)
-
-    cells[:all][addr.addr]
-  end
-
   def delete_cell_addr(addr)
     addr = CellAddress.self_or_new(addr)
 
@@ -1288,6 +1288,14 @@ class Spreadsheet
     cells[:all].delete addr.addr
     cells[:by_col][col].delete row
     cells[:by_row][row].delete col
+  end
+
+  private
+
+  def find_cell_addr(addr)
+    addr = CellAddress.self_or_new(addr)
+
+    cells[:all][addr.addr]
   end
 
   def update_cell_addr(addr, cell)
@@ -1314,35 +1322,35 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
-  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  # a3 = spreadsheet.set(:A3, 1)
-  # a4 = spreadsheet.set(:A4, '=A3+1')
-  # a4.copy_to_range 'A5:A20'
-  # b3 = spreadsheet.set(:B3, 1)
-  # b4 = spreadsheet.set(:B4, 1)
-  # b5 = spreadsheet.set(:B5, '=B3+B4')
-  # b5.copy_to_range 'B6:B20'
-  #
-  # # Factorials.
-  # c1 = spreadsheet.set(:C1, 'Factorials:')
-  # c3 = spreadsheet.set(:C3, 1)
-  # c4 = spreadsheet.set(:C4, '=A4*C3')
-  # c4.copy_to_range 'C5:C20'
+  # Fibonacci sequence.
+  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  a3 = spreadsheet.set(:A3, 1)
+  a4 = spreadsheet.set(:A4, '=A3+1')
+  a4.copy_to_range 'A5:A20'
+  b3 = spreadsheet.set(:B3, 1)
+  b4 = spreadsheet.set(:B4, 1)
+  b5 = spreadsheet.set(:B5, '=B3+B4')
+  b5.copy_to_range 'B6:B20'
 
-  spreadsheet.set :A1, 1
-  a2 = spreadsheet.set(:A2, '=A1+1')
-  last_row = 10
-  a2.copy_to_range "A3:A#{last_row}"
-  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 8], "=col_count(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 9], "=row_count(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 6], "=col_num(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 7], "=row_num(B#{last_row + 7}:D#{last_row + 7})"
+  # Factorials.
+  c1 = spreadsheet.set(:C1, 'Factorials:')
+  c3 = spreadsheet.set(:C3, 1)
+  c4 = spreadsheet.set(:C4, '=A4*C3')
+  c4.copy_to_range 'C5:C20'
+
+  # spreadsheet.set :A1, 1
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # last_row = 10
+  # a2.copy_to_range "A3:A#{last_row}"
+  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 8], "=col_count(A1:D#{last_row})"
+  # spreadsheet.set [:A, last_row + 9], "=row_count(A1:D#{last_row})"
+  # spreadsheet.set [:A, last_row + 6], "=col_num(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 7], "=row_num(B#{last_row + 7}:D#{last_row + 7})"
 
   spreadsheet.repl
 end
