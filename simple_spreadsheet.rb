@@ -778,8 +778,8 @@ class Spreadsheet
   def initialize
     @cells = {
       all: {},
-      by_col: {},
-      by_row: {}
+      cols: {},
+      rows: {}
     }
   end
 
@@ -817,7 +817,7 @@ class Spreadsheet
 
     affected_cols = col_to_add..last_col_index
 
-    cells[:by_col].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
+    cells[:cols].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
         cell.move_right! count, update_ranges_mode: true, affected_cols: affected_cols
       end
@@ -830,10 +830,10 @@ class Spreadsheet
     affected_cols = (col_to_delete + count)..last_col_index
 
     count.times do |i|
-      cells[:by_col][col_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_col][col_to_delete + i]
+      cells[:cols][col_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:cols][col_to_delete + i]
     end
 
-    cells[:by_col].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
+    cells[:cols].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
         cell.move_left! count, update_ranges_mode: true, affected_cols: affected_cols
       end
@@ -843,7 +843,7 @@ class Spreadsheet
   def add_row(row_to_add, count = 1)
     affected_rows = row_to_add..last_row
 
-    cells[:by_row].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
+    cells[:rows].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
         cell.move_down! count, update_ranges_mode: true, affected_rows: affected_rows
       end
@@ -854,10 +854,10 @@ class Spreadsheet
     affected_rows = (row_to_delete + count)..last_row
 
     count.times do |i|
-      cells[:by_row][row_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:by_row][row_to_delete + i]
+      cells[:rows][row_to_delete + i].each { |(_, cell)| delete_cell_addr cell.addr } if cells[:rows][row_to_delete + i]
     end
 
-    cells[:by_row].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
+    cells[:rows].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
         cell.move_up! count, update_ranges_mode: true, affected_rows: affected_rows
       end
@@ -873,7 +873,7 @@ class Spreadsheet
 
       add_col dest_col, count
 
-      cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+      cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
           cell.move_right! dest_col - source_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
         end
@@ -885,7 +885,7 @@ class Spreadsheet
 
       source_col += count
 
-      cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+      cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
           cell.move_left! source_col - dest_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
         end
@@ -901,7 +901,7 @@ class Spreadsheet
 
       add_row dest_row, count
 
-      cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+      cells[:rows].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
           cell.move_down! dest_row - source_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
         end
@@ -913,7 +913,7 @@ class Spreadsheet
 
       source_row += count
 
-      cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+      cells[:rows].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
           cell.move_up! source_row - dest_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
         end
@@ -927,7 +927,7 @@ class Spreadsheet
     source_col = CellAddress.col_addr_index(source_col)  unless source_col.is_a?(Fixnum)
     dest_col   = CellAddress.col_addr_index(dest_col)    unless dest_col.is_a?(Fixnum)
 
-    cells[:by_col].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
+    cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
         cell.copy_to cell.addr.right_neighbor(dest_col - source_col)
       end
@@ -938,7 +938,7 @@ class Spreadsheet
     source_row = CellAddress.row_addr_index(source_row)  unless source_row.is_a?(Fixnum)
     dest_row   = CellAddress.row_addr_index(dest_row)    unless dest_row.is_a?(Fixnum)
 
-    cells[:by_row].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
+    cells[:rows].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
         cell.copy_to cell.addr.lower_neighbor(dest_row - source_row)
       end
@@ -990,8 +990,8 @@ class Spreadsheet
         row = cell.addr.row
 
         consistent =
-          cells[:by_col][col] && cells[:by_col][col][row] == cell &&
-          cells[:by_row][row] && cells[:by_row][row][col] == cell
+          cells[:cols][col] && cells[:cols][col][row] == cell &&
+          cells[:rows][row] && cells[:rows][row][col] == cell
 
         log "Error(s) detected" unless consistent
 
@@ -1017,8 +1017,8 @@ class Spreadsheet
       end
     end
 
-    max_col = (max = cells[:by_col].sort.max) && max[0]
-    max_row = (max = cells[:by_row].sort.max) && max[0]
+    max_col = (max = cells[:cols].sort.max) && max[0]
+    max_row = (max = cells[:rows].sort.max) && max[0]
 
     if max_col && max_row
       print ' '
@@ -1042,7 +1042,7 @@ class Spreadsheet
         (1..max_col).each  do |col|
           print PP_COL_DELIMITER if col > 1
 
-          if (cell = cells[:by_row][row] && cells[:by_row][row][col])
+          if (cell = cells[:rows][row] && cells[:rows][row][col])
             value = cell.blank? ? PP_EMPTY_CELL : cell.eval
 
             highlight_cell = false
@@ -1261,12 +1261,12 @@ class Spreadsheet
     col = addr.col_index
     row = addr.row
 
-    cells[:by_col][col] ||= {}
-    cells[:by_row][row] ||= {}
+    cells[:cols][col] ||= {}
+    cells[:rows][row] ||= {}
 
     cells[:all].delete addr.addr
-    cells[:by_col][col].delete row
-    cells[:by_row][row].delete col
+    cells[:cols][col].delete row
+    cells[:rows][row].delete col
   end
 
   private
@@ -1283,18 +1283,18 @@ class Spreadsheet
     col = addr.col_index
     row = addr.row
 
-    cells[:by_col][col] ||= {}
-    cells[:by_row][row] ||= {}
+    cells[:cols][col] ||= {}
+    cells[:rows][row] ||= {}
 
-    cells[:all][addr.addr] = cells[:by_col][col][row] = cells[:by_row][row][col] = cell
+    cells[:all][addr.addr] = cells[:cols][col][row] = cells[:rows][row][col] = cell
   end
 
   def last_col_index
-    cells[:by_col].keys.max
+    cells[:cols].keys.max
   end
 
   def last_row
-    cells[:by_row].keys.max
+    cells[:rows].keys.max
   end
 end
 
