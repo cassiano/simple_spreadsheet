@@ -1,4 +1,5 @@
 require 'colorize'
+require 'after_do'
 
 class Object
   DEBUG = false
@@ -739,54 +740,49 @@ end
 
 class Formula
   def self.sum(*cell_values)
-    extract_range_data cell_values
-    cell_values.flatten.inject :+
+    @cell_values.flatten.inject :+
   end
 
   def self.count(*cell_values)
-    extract_range_data cell_values
-    cell_values.flatten.size
+    @cell_values.flatten.size
   end
 
   def self.average(*cell_values)
-    extract_range_data cell_values
-    sum(cell_values) * 1.0 / count(cell_values)
+    sum(@cell_values) * 1.0 / count(@cell_values)
   end
 
   def self.max(*cell_values)
-    extract_range_data cell_values
-    cell_values.flatten.max
+    @cell_values.flatten.max
   end
 
   def self.min(*cell_values)
-    extract_range_data cell_values
-    cell_values.flatten.min
+    @cell_values.flatten.min
   end
 
   def self.col_count(*cell_values)
-    extract_range_data cell_values
-    cell_values[0][0].size
+    @cell_values[0][0].size
   end
 
   def self.row_count(*cell_values)
-    extract_range_data cell_values
-    cell_values[0].size
+    @cell_values[0].size
   end
 
   def self.col_num(*cell_values)
-    range_data = extract_range_data cell_values
-    range_data && range_data[:upper_left][0]
+    @range_metadata && @range_metadata[:upper_left][0]
   end
 
   def self.row_num(*cell_values)
-    range_data = extract_range_data cell_values
-    range_data && range_data[:upper_left][1]
+    @range_metadata && @range_metadata[:upper_left][1]
   end
 
-  private
+  singleton_class.extend AfterDo    # https://github.com/PragTob/after_do
 
-  def self.extract_range_data(cell_values)
-    cell_values.pop if cell_values.last.is_a?(Hash)
+  singleton_class.before singleton_methods do |*cell_values|
+    # Get rid of the last argument, usually the Formula class itself.
+    cell_values.pop if cell_values.last == self
+
+    @range_metadata = cell_values.pop if cell_values.last.is_a?(Hash)
+    @cell_values    = cell_values
   end
 end
 
