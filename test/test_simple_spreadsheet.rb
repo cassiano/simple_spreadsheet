@@ -1249,68 +1249,16 @@ class TestSpreadsheet < Test::Unit::TestCase
             end
           end
 
-          context 'COL_NUM()' do
-            test 'works for columns' do
-              a1 = @spreadsheet.set(:A1, 1)
-              a2 = @spreadsheet.set(:A2, 2)
-              a3 = @spreadsheet.set(:A3, 4)
-              a4 = @spreadsheet.set(:A4, '= col_num(A1:A3)')
+          test 'COL_NUM is supposed to be used with columns only' do
+            b1 = @spreadsheet.set(:B1, '= col_num(B2:B100)')
 
-              assert_equal 1, a4.eval
-            end
-
-            test 'works for rows, even though it does not make much sense' do
-              a1 = @spreadsheet.set(:A1, 1)
-              b1 = @spreadsheet.set(:B1, 2)
-              c1 = @spreadsheet.set(:C1, 4)
-              d1 = @spreadsheet.set(:D1, '= col_num(A1:C1)')
-
-              assert_equal 1, d1.eval
-            end
-
-            test 'works for matrices, even though it does not make much sense' do
-              a1 = @spreadsheet.set(:A1, 1)
-              a2 = @spreadsheet.set(:A2, 2)
-              b1 = @spreadsheet.set(:B1, 4)
-              b2 = @spreadsheet.set(:B2, 8)
-              c1 = @spreadsheet.set(:C1, 16)
-              c2 = @spreadsheet.set(:C2, 32)
-              d1 = @spreadsheet.set(:D1, '= col_num(A1:C2)')
-
-              assert_equal 1, d1.eval
-            end
+            assert_equal 2, b1.eval
           end
 
-          context 'ROW_NUM()' do
-            test 'works for columns, even though it does not make much sense' do
-              a1 = @spreadsheet.set(:A1, 1)
-              a2 = @spreadsheet.set(:A2, 2)
-              a3 = @spreadsheet.set(:A3, 4)
-              a4 = @spreadsheet.set(:A4, '= row_num(A1:A3)')
+          test 'ROW_NUM is supposed to be used with rows only' do
+            a2 = @spreadsheet.set(:A2, '= row_num(B2:Z2)')
 
-              assert_equal 1, a4.eval
-            end
-
-            test 'works for rows' do
-              a1 = @spreadsheet.set(:A1, 1)
-              b1 = @spreadsheet.set(:B1, 2)
-              c1 = @spreadsheet.set(:C1, 4)
-              d1 = @spreadsheet.set(:D1, '= row_num(A1:C1)')
-
-              assert_equal 1, d1.eval
-            end
-
-            test 'works for matrices, even though it does not make much sense' do
-              a1 = @spreadsheet.set(:A1, 1)
-              a2 = @spreadsheet.set(:A2, 2)
-              b1 = @spreadsheet.set(:B1, 4)
-              b2 = @spreadsheet.set(:B2, 8)
-              c1 = @spreadsheet.set(:C1, 16)
-              c2 = @spreadsheet.set(:C2, 32)
-              d1 = @spreadsheet.set(:D1, '= row_num(A1:C2)')
-
-              assert_equal 1, d1.eval
-            end
+            assert_equal 2, a2.eval
           end
         end
 
