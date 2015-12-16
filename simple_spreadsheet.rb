@@ -223,12 +223,10 @@ class Cell
     observers.delete observer
   end
 
-  def content=(new_content, forced_refresh: false)
+  def content=(new_content)
     log "Replacing content `#{content}` with new content `#{new_content}` in cell #{addr}"
 
     new_content.strip! if new_content.is_a?(String)
-
-    return if content == new_content unless forced_refresh
 
     if new_content.is_a?(String)
       # Upcase cell addresses (e.g. 'a1' by 'A1').
@@ -265,30 +263,9 @@ class Cell
       @evaluatable_content.gsub! /(#{CellAddress::CELL_COORD})/i, '%{\1}'
 
       log "Evaluatable content before finding references: `#{@evaluatable_content}`"
-    else
-      sync_references   # TODO: try to refactor this call and the one in line 320.
     end
 
     eval true
-  end
-
-  def refresh_content(new_content = content)
-    send :content=, new_content, forced_refresh: true
-  end
-
-  def find_references
-    return [] unless formula?
-
-    evaluatable_content.scan(/%\{(#{CellAddress::CELL_COORD})\}/i).uniq.inject [] do |memo, (addr)|
-      cell           = spreadsheet.find_or_create_cell(addr)
-      cell_reference = CellReference.new(
-        cell,
-        addr: addr,
-        is_range: !!(addr =~ Regexp.new(CellAddress::CELL_COORD_LOWER_CASE))
-      )
-
-      memo.unique_add cell_reference
-    end
   end
 
   def eval(reevaluate = false)
@@ -305,51 +282,18 @@ class Cell
     @evaluated_content ||= begin
       @eval_error = nil
 
+      begin
+        sync_references
+      rescue StandardError => e
+        @eval_error = e
+      end
+
       new_evaluated_content =
-        if formula?
-          log "Calculating formula for #{addr}"
-
-          evaluated_content = evaluatable_content[1..-1]
-
-          # Remove all address (absolute) markers ('$') before evaluating the formula.
-          evaluated_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '\2\4'
-
-          # Synchronize all references, since they may have changed and the references in `references` may not be the same as the ones
-          # which are currently present in `evaluated_content`.
-          begin
-            sync_references
-          rescue StandardError => e
-            @eval_error = e
-          end
-
-          # Evaluate the cell only if all references are valid.
-          if valid? && references.all?(&:valid?)
-            references_hash = references.inject Hash.new do |memo, reference|
-              reference_value = reference.eval.to_s
-
-              memo[reference.addr.addr]           = reference_value
-              memo[reference.addr.addr.downcase]  = reference_value
-
-              memo
-            end
-
-            log "References hash: #{references_hash.inspect}"
-
-            # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
-            # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
-            begin
-              Formula.instance_eval { eval evaluated_content % references_hash }.tap do |value|
-                log "Formula value for #{addr}: #{value}"
-              end
-            rescue StandardError => e
-              @eval_error = e
-              eval_error_message
-            end
-          else
-            @eval_error ||= references.find(&:invalid?).eval_error
-            eval_error_message
-          end
-        else
+        if invalid?
+          eval_error_message
+        elsif formula?
+          calculate_formula
+        else    # Scalar.
           content
         end
 
@@ -362,6 +306,21 @@ class Cell
     fire_observers if previous_content != @evaluated_content
 
     @evaluated_content || DEFAULT_VALUE
+  end
+
+  def find_references
+    return [] unless formula?
+
+    evaluatable_content.scan(/%\{(#{CellAddress::CELL_COORD})\}/i).uniq.inject [] do |memo, (addr)|
+      cell           = spreadsheet.find_or_create_cell(addr)
+      cell_reference = CellReference.new(
+        cell,
+        addr: addr,
+        is_range: !!(addr =~ Regexp.new(CellAddress::CELL_COORD_LOWER_CASE))
+      )
+
+      memo.unique_add cell_reference
+    end
   end
 
   def valid?
@@ -469,8 +428,6 @@ class Cell
             when :left, :right
               lower_right_col = CellAddress.col_addr_index(lower_right_col)
 
-              p [affected_cols, lower_right_col]
-
               affected_cols.include? lower_right_col
             when :up, :down
               affected_rows.include? lower_right_row
@@ -536,6 +493,10 @@ class Cell
     content.is_a?(String) && content[0] == '='
   end
 
+  def scalar?
+    !formula?
+  end
+
   def ==(another_cell_or_cell_reference)
     if another_cell_or_cell_reference.is_a?(CellReference)
       self == another_cell_or_cell_reference.cell
@@ -554,6 +515,43 @@ class Cell
   end
 
   private
+
+  def calculate_formula
+    log "Calculating formula for #{addr}"
+
+    evaluated_content = evaluatable_content[1..-1]
+
+    # Remove all address (absolute) markers ('$') before evaluating the formula.
+    evaluated_content.gsub! /#{CellAddress::CELL_COORD_WITH_PARENS}/i, '\2\4'
+
+    # Evaluate the cell only if all references are valid.
+    if valid? && references.all?(&:valid?)
+      references_hash = references.inject Hash.new do |memo, reference|
+        reference_value = reference.eval.to_s
+
+        memo[reference.addr.addr]           = reference_value
+        memo[reference.addr.addr.downcase]  = reference_value
+
+        memo
+      end
+
+      log "References hash: #{references_hash.inspect}"
+
+      # Replace all references by their corresponding values and evaluate the cell's content in the Formula context, so functions
+      # like `sum`, `average` etc are simply treated as calls to Formula's (singleton) methods.
+      begin
+        Formula.instance_eval { eval evaluated_content % references_hash }.tap do |value|
+          log "Formula value for #{addr}: #{value}"
+        end
+      rescue StandardError => e
+        @eval_error = e
+        eval_error_message
+      end
+    else
+      @eval_error ||= references.find(&:invalid?).eval_error
+      eval_error_message
+    end
+  end
 
   def sync_references
     old_references = references.clone
