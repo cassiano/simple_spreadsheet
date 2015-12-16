@@ -460,22 +460,26 @@ class Cell
     end
 
     # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
+    reset_content
+  end
+
+  def reset_content
     self.content = nil
   end
 
-  def move_right!(col_count = 1, update_ranges_mode: false, affected_cols: nil)
+  def move_right(col_count = 1, update_ranges_mode: false, affected_cols: nil)
     move_to! addr.right_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :right, affected_cols: affected_cols
   end
 
-  def move_left!(col_count = 1, update_ranges_mode: false, affected_cols: nil)
+  def move_left(col_count = 1, update_ranges_mode: false, affected_cols: nil)
     move_to! addr.left_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :left, affected_cols: affected_cols
   end
 
-  def move_down!(row_count = 1, update_ranges_mode: false, affected_rows: nil)
+  def move_down(row_count = 1, update_ranges_mode: false, affected_rows: nil)
     move_to! addr.lower_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :down, affected_rows: affected_rows
   end
 
-  def move_up!(row_count = 1, update_ranges_mode: false, affected_rows: nil)
+  def move_up(row_count = 1, update_ranges_mode: false, affected_rows: nil)
     move_to! addr.upper_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :up, affected_rows: affected_rows
   end
 
@@ -817,7 +821,7 @@ class Spreadsheet
 
     cells[:cols].select { |(col, _)| col >= col_to_add }.sort.reverse.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_right! count, update_ranges_mode: true, affected_cols: affected_cols
+        cell.move_right count, update_ranges_mode: true, affected_cols: affected_cols
       end
     end
   end
@@ -833,7 +837,7 @@ class Spreadsheet
 
     cells[:cols].select { |(col, _)| col >= col_to_delete + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
-        cell.move_left! count, update_ranges_mode: true, affected_cols: affected_cols
+        cell.move_left count, update_ranges_mode: true, affected_cols: affected_cols
       end
     end
   end
@@ -843,7 +847,7 @@ class Spreadsheet
 
     cells[:rows].select { |(row, _)| row >= row_to_add }.sort.reverse.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_down! count, update_ranges_mode: true, affected_rows: affected_rows
+        cell.move_down count, update_ranges_mode: true, affected_rows: affected_rows
       end
     end
   end
@@ -857,7 +861,7 @@ class Spreadsheet
 
     cells[:rows].select { |(row, _)| row >= row_to_delete + count }.sort.each do |(_, cols)|
       cols.sort.each do |(_, cell)|
-        cell.move_up! count, update_ranges_mode: true, affected_rows: affected_rows
+        cell.move_up count, update_ranges_mode: true, affected_rows: affected_rows
       end
     end
   end
@@ -873,7 +877,7 @@ class Spreadsheet
 
       cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_right! dest_col - source_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
+          cell.move_right dest_col - source_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
         end
       end
 
@@ -885,7 +889,7 @@ class Spreadsheet
 
       cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
         rows.sort.each do |(_, cell)|
-          cell.move_left! source_col - dest_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
+          cell.move_left source_col - dest_col, update_ranges_mode: true, affected_cols: source_col..(source_col + count - 1)
         end
       end
 
@@ -901,7 +905,7 @@ class Spreadsheet
 
       cells[:rows].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_down! dest_row - source_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
+          cell.move_down dest_row - source_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
         end
       end
 
@@ -913,7 +917,7 @@ class Spreadsheet
 
       cells[:rows].select { |(row, _)| row >= source_row && row < source_row + count }.sort.each do |(_, cols)|
         cols.sort.each do |(_, cell)|
-          cell.move_up! source_row - dest_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
+          cell.move_up source_row - dest_row, update_ranges_mode: true, affected_rows: source_row..(source_row + count - 1)
         end
       end
 
@@ -1126,8 +1130,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; CN - Copy cell to range; AC - Add col; AR - Add row; DC - Delete col; DR - Delete row; MC - Move Column; MR - Move Row; CC - Copy col; CR - Copy row; SZ - Set cell size; Q - Quit]: ",
-          ['S', 'M', 'C', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SZ', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; Q - Quit]: ",
+          ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'Q'],
           'S'
         )
 
@@ -1153,24 +1157,30 @@ class Spreadsheet
           when 'S' then
             cell.move_to! read_cell_addr.call('Select destination reference: ')
           when 'U' then
-            cell.move_up! read_number.call('Enter # of rows (default: 1): ', 1)
+            cell.move_up read_number.call('Enter # of rows (default: 1): ', 1)
           when 'D' then
-            cell.move_down! read_number.call('Enter # of rows (default: 1): ', 1)
+            cell.move_down read_number.call('Enter # of rows (default: 1): ', 1)
           when 'L' then
-            cell.move_left! read_number.call('Enter # of cols (default: 1): ', 1)
+            cell.move_left read_number.call('Enter # of cols (default: 1): ', 1)
           when 'R' then
-            cell.move_right! read_number.call('Enter # of cols (default: 1): ', 1)
+            cell.move_right read_number.call('Enter # of cols (default: 1): ', 1)
           end
 
         when 'C' then
           addr      = read_cell_addr.call('Select source reference: ')
-          cell     = find_or_create_cell(addr)
+          cell      = find_or_create_cell(addr)
           dest_addr = read_cell_addr.call('Select destination reference: ')
 
           cell.copy_to dest_addr
 
+        when 'R' then
+          addr = read_cell_addr.call('Select source reference: ')
+          cell = find_or_create_cell(addr)
+
+          cell.reset_content
+
         when 'CN' then
-          addr        = read_cell_addr.call('Select source reference: ')
+          addr       = read_cell_addr.call('Select source reference: ')
           cell       = find_or_create_cell(addr)
           dest_range = read_cell_range.call('Select destination range: ')
 
@@ -1228,7 +1238,7 @@ class Spreadsheet
 
           copy_row source_row, dest_row, row_count
 
-        when 'SZ' then
+        when 'SS' then
           Spreadsheet.const_set :PP_CELL_SIZE,
                                 read_number.call("Enter new cell size (default: #{Spreadsheet::PP_CELL_SIZE}): ", Spreadsheet::PP_CELL_SIZE)
 
@@ -1299,40 +1309,40 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
-  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  # a3 = spreadsheet.set(:A3, 1)
-  # a4 = spreadsheet.set(:A4, '=A3+1')
-  # a4.copy_to_range 'A5:A20'
-  # b3 = spreadsheet.set(:B3, 1)
-  # b4 = spreadsheet.set(:B4, 1)
-  # b5 = spreadsheet.set(:B5, '=B3+B4')
-  # b5.copy_to_range 'B6:B20'
-  #
-  # # Factorials.
-  # c1 = spreadsheet.set(:C1, 'Factorials:')
-  # c3 = spreadsheet.set(:C3, 1)
-  # c4 = spreadsheet.set(:C4, '=A4*C3')
-  # c4.copy_to_range 'C5:C20'
+  # Fibonacci sequence.
+  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  a3 = spreadsheet.set(:A3, 1)
+  a4 = spreadsheet.set(:A4, '=A3+1')
+  a4.copy_to_range 'A5:A20'
+  b3 = spreadsheet.set(:B3, 1)
+  b4 = spreadsheet.set(:B4, 1)
+  b5 = spreadsheet.set(:B5, '=B3+B4')
+  b5.copy_to_range 'B6:B20'
 
-  spreadsheet.set :A1, 1
-  a2 = spreadsheet.set(:A2, '=A1+1')
-  last_row = 10
-  a2.copy_to_range "A3:A#{last_row}"
-  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  4.times do |i|
-    col_name = CellAddress.col_addr_name(1 + i)
-    spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
-  end
-  4.times do |i|
-    spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
-  end
+  # Factorials.
+  c1 = spreadsheet.set(:C1, 'Factorials:')
+  c3 = spreadsheet.set(:C3, 1)
+  c4 = spreadsheet.set(:C4, '=A4*C3')
+  c4.copy_to_range 'C5:C20'
+
+  # spreadsheet.set :A1, 1
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # last_row = 10
+  # a2.copy_to_range "A3:A#{last_row}"
+  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
+  # spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
+  # 4.times do |i|
+  #   col_name = CellAddress.col_addr_name(1 + i)
+  #   spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
+  # end
+  # 4.times do |i|
+  #   spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
+  # end
 
   spreadsheet.repl
 end

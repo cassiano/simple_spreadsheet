@@ -1263,10 +1263,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 10 + 20, b3.eval
       end
 
-      test '#move_right!' do
+      test '#move_right' do
         a1 = @spreadsheet.set(:A1, 1)
 
-        a1.move_right!
+        a1.move_right
 
         b1 = @spreadsheet.find_or_create_cell(:B1)
 
@@ -1274,10 +1274,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a1.blank?
       end
 
-      test '#move_right! should allow to move more that 1 column (default value)' do
+      test '#move_right should allow to move more that 1 column (default value)' do
         a1 = @spreadsheet.set(:A1, 1)
 
-        a1.move_right! 4
+        a1.move_right 4
 
         e1 = @spreadsheet.find_or_create_cell(:E1)
 
@@ -1285,10 +1285,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a1.blank?
       end
 
-      test '#move_left!' do
+      test '#move_left' do
         b1 = @spreadsheet.set(:B1, 1)
 
-        b1.move_left!
+        b1.move_left
 
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
@@ -1296,10 +1296,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, b1.blank?
       end
 
-      test '#move_left! should allow to move more that 1 column (default value)' do
+      test '#move_left should allow to move more that 1 column (default value)' do
         e1 = @spreadsheet.set(:E1, 1)
 
-        e1.move_left! 4
+        e1.move_left 4
 
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
@@ -1307,18 +1307,18 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, e1.blank?
       end
 
-      test '#move_left! should raise an error when in leftmost cell' do
+      test '#move_left should raise an error when in leftmost cell' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_raises CellAddress::IllegalCellReference do
-          a1.move_left!
+          a1.move_left
         end
       end
 
-      test '#move_down!' do
+      test '#move_down' do
         a1 = @spreadsheet.set(:A1, 1)
 
-        a1.move_down!
+        a1.move_down
 
         a2 = @spreadsheet.find_or_create_cell(:A2)
 
@@ -1326,10 +1326,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a1.blank?
       end
 
-      test '#move_down! should allow to move more that 1 row (default value)' do
+      test '#move_down should allow to move more that 1 row (default value)' do
         a1 = @spreadsheet.set(:A1, 1)
 
-        a1.move_down! 4
+        a1.move_down 4
 
         a5 = @spreadsheet.find_or_create_cell(:A5)
 
@@ -1337,10 +1337,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a1.blank?
       end
 
-      test '#move_up!' do
+      test '#move_up' do
         a2 = @spreadsheet.set(:A2, 1)
 
-        a2.move_up!
+        a2.move_up
 
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
@@ -1348,10 +1348,10 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a2.blank?
       end
 
-      test '#move_up! should allow to move more that 1 row (default value)' do
+      test '#move_up should allow to move more that 1 row (default value)' do
         a5 = @spreadsheet.set(:A5, 1)
 
-        a5.move_up! 4
+        a5.move_up 4
 
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
@@ -1359,11 +1359,11 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal true, a5.blank?
       end
 
-      test '#move_up! should raise an error when in topmost cell' do
+      test '#move_up should raise an error when in topmost cell' do
         a1 = @spreadsheet.find_or_create_cell(:A1)
 
         assert_raises CellAddress::IllegalCellReference do
-          a1.move_up!
+          a1.move_up
         end
       end
     end
