@@ -1024,6 +1024,296 @@ class TestSpreadsheet < Test::Unit::TestCase
           assert_equal 'foo bar', a3.eval
         end
 
+        context 'builtin functions' do
+          context 'SUM()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= sum(A1:A3)')
+
+              assert_equal 1 + 2 + 4, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= sum(A1:C1)')
+
+              assert_equal 1 + 2 + 4, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= sum(A1:C2)')
+
+              assert_equal 1 + 2 + 4 + 8 + 16 + 32, d1.eval
+            end
+          end
+
+          context 'COUNT()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= count(A1:A3)')
+
+              assert_equal 3, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= count(A1:C1)')
+
+              assert_equal 3, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= count(A1:C2)')
+
+              assert_equal 6, d1.eval
+            end
+          end
+
+          context 'AVERAGE()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= average(A1:A3)')
+
+              assert_equal (1 + 2 + 4) * 1.0 / 3, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= average(A1:C1)')
+
+              assert_equal (1 + 2 + 4) * 1.0 / 3, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= average(A1:C2)')
+
+              assert_equal (1 + 2 + 4 + 8 + 16 + 32) * 1.0 / 6, d1.eval
+            end
+          end
+
+          context 'MAX()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= max(A1:A3)')
+
+              assert_equal [1, 2, 4].max, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= max(A1:C1)')
+
+              assert_equal [1, 2, 4].max, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= max(A1:C2)')
+
+              assert_equal [1, 2, 4, 8, 16, 32].max, d1.eval
+            end
+          end
+
+          context 'MIN()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= min(A1:A3)')
+
+              assert_equal [1, 2, 4].min, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= min(A1:C1)')
+
+              assert_equal [1, 2, 4].min, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= min(A1:C2)')
+
+              assert_equal [1, 2, 4, 8, 16, 32].min, d1.eval
+            end
+          end
+
+          context 'COL_COUNT()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= col_count(A1:A3)')
+
+              assert_equal 1, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= col_count(A1:C1)')
+
+              assert_equal 3, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= col_count(A1:C2)')
+
+              assert_equal 3, d1.eval
+            end
+          end
+
+          context 'ROW_COUNT()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= row_count(A1:A3)')
+
+              assert_equal 3, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= row_count(A1:C1)')
+
+              assert_equal 1, d1.eval
+            end
+
+            test 'works for matrices' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= row_count(A1:C2)')
+
+              assert_equal 2, d1.eval
+            end
+          end
+
+          context 'COL_NUM()' do
+            test 'works for columns' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= col_num(A1:A3)')
+
+              assert_equal 1, a4.eval
+            end
+
+            test 'works for rows, even though it does not make much sense' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= col_num(A1:C1)')
+
+              assert_equal 1, d1.eval
+            end
+
+            test 'works for matrices, even though it does not make much sense' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= col_num(A1:C2)')
+
+              assert_equal 1, d1.eval
+            end
+          end
+
+          context 'ROW_NUM()' do
+            test 'works for columns, even though it does not make much sense' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              a3 = @spreadsheet.set(:A3, 4)
+              a4 = @spreadsheet.set(:A4, '= row_num(A1:A3)')
+
+              assert_equal 1, a4.eval
+            end
+
+            test 'works for rows' do
+              a1 = @spreadsheet.set(:A1, 1)
+              b1 = @spreadsheet.set(:B1, 2)
+              c1 = @spreadsheet.set(:C1, 4)
+              d1 = @spreadsheet.set(:D1, '= row_num(A1:C1)')
+
+              assert_equal 1, d1.eval
+            end
+
+            test 'works for matrices, even though it does not make much sense' do
+              a1 = @spreadsheet.set(:A1, 1)
+              a2 = @spreadsheet.set(:A2, 2)
+              b1 = @spreadsheet.set(:B1, 4)
+              b2 = @spreadsheet.set(:B2, 8)
+              c1 = @spreadsheet.set(:C1, 16)
+              c2 = @spreadsheet.set(:C2, 32)
+              d1 = @spreadsheet.set(:D1, '= row_num(A1:C2)')
+
+              assert_equal 1, d1.eval
+            end
+          end
+        end
+
         context 'references' do
           test 'using the same type of reference (relative x absolute), points to the same cell only once' do
             a1 = @spreadsheet.set(:A1, 1)

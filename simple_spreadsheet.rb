@@ -268,6 +268,10 @@ class Cell
     eval true
   end
 
+  def reset_content
+    self.content = nil
+  end
+
   def eval(reevaluate = false)
     previous_content = @evaluated_content
 
@@ -461,10 +465,6 @@ class Cell
 
     # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
     reset_content
-  end
-
-  def reset_content
-    self.content = nil
   end
 
   def move_right(col_count = 1, update_ranges_mode: false, affected_cols: nil)
