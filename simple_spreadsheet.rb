@@ -641,29 +641,7 @@ end
 class CellReference
   attr_reader :cell
 
-  # The code below could also re written as: `delegate_all to: :cell`, which would be more generic but a little slower (due to the use of
-  # the :method_missing method).
-  delegate  :directly_or_indirectly_references?,
-            :addr,
-            :eval,
-            :observers,
-            :add_observer,
-            :remove_observer,
-            :spreadsheet,
-            :last_evaluated_at,
-            :update_reference,
-            :references,
-            :max_reference_timestamp,
-            :max_reference_timestamp=,
-            :reset_circular_reference_check_cache,
-            :content,
-            :content=,
-            :refresh_content,
-            :eval_error,
-            :valid?,
-            :invalid?,
-            :blank?,
-            to: :cell
+  delegate_all to: :cell
 
   def initialize(cell, addr: cell.addr.addr, is_range: false)
     raise IllegalCellReference unless addr.to_s =~ CellAddress::CELL_COORD_WITH_PARENS_REG_EXP
