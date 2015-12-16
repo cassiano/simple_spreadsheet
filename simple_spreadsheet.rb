@@ -738,7 +738,7 @@ class Formula
   end
 
   def self.col_count(*cell_values)
-    @cell_values[0][0].size
+    @cell_values[0][0].size   # The size of all rows should be the same, so we can safely check the 1st row.
   end
 
   def self.row_count(*cell_values)
