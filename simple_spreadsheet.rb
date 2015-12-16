@@ -768,6 +768,7 @@ class Spreadsheet
   PP_CELL_SIZE     = 30
   PP_ROW_REF_SIZE  = 5
   PP_COL_DELIMITER = ' | '
+  PP_EMPTY_CELL    = '·'
 
   # List of possible exceptions.
   class AlreadyExistentCellError < StandardError; end
@@ -1042,7 +1043,7 @@ class Spreadsheet
           print PP_COL_DELIMITER if col > 1
 
           if (cell = cells[:by_row][row] && cells[:by_row][row][col])
-            value = cell.eval unless cell.blank?
+            value = cell.blank? ? PP_EMPTY_CELL : cell.eval
 
             highlight_cell = false
 
