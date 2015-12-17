@@ -2,7 +2,7 @@ require 'colorize'
 require 'after_do'
 
 class Object
-  DEBUG = true
+  DEBUG = false
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -474,8 +474,8 @@ class Cell
           end
 
         if update_observer
-          puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
-
+          # puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
+          #
           # observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
           #   # Skip range if it does not contain current cell.
           #   next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
