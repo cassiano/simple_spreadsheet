@@ -2,7 +2,7 @@ require 'colorize'
 require 'after_do'
 
 class Object
-  DEBUG = false
+  DEBUG = true
 
   def log(msg)
     puts "[#{Time.now}] #{msg}" if DEBUG
@@ -244,7 +244,7 @@ class Cell
 
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
-      @evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
+      evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
         upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
         lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
         upper_left_col                   = CellAddress.col_addr_index(upper_left_col)
@@ -262,7 +262,7 @@ class Cell
       # Replace all cell addresses by template variables (e.g. 'A1' by '%{A1}', '$A1' by '%{$A1}' etc).
       @evaluatable_content.gsub! /(#{CellAddress::CELL_COORD})/i, '%{\1}'
 
-      log "Evaluatable content before finding references: `#{@evaluatable_content}`"
+      log "Evaluatable content before finding references: `#{evaluatable_content}`"
     end
 
     eval true
@@ -420,9 +420,7 @@ class Cell
           update_upper_left_cell =
             case direction
             when :left, :right
-              upper_left_col = CellAddress.col_addr_index(upper_left_col)
-
-              affected_cols.include? upper_left_col
+              affected_cols.include? CellAddress.col_addr_index(upper_left_col)
             when :up, :down
               affected_rows.include? upper_left_row
             end
@@ -430,17 +428,15 @@ class Cell
           update_lower_right_cell =
             case direction
             when :left, :right
-              lower_right_col = CellAddress.col_addr_index(lower_right_col)
-
-              affected_cols.include? lower_right_col
+              affected_cols.include? CellAddress.col_addr_index(lower_right_col)
             when :up, :down
               affected_rows.include? lower_right_row
             end
 
-          upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr),  addr: upper_left_addr)
-          lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr), addr: lower_right_addr)
+          upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
+          lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
 
-          upper_left_cell_new_addr  = update_upper_left_cell  ? upper_left_cell.new_addr(addr, dest_addr)  : upper_left_cell.addr
+          upper_left_cell_new_addr  = update_upper_left_cell ? upper_left_cell.new_addr(addr, dest_addr) : upper_left_cell.addr
           lower_right_cell_new_addr = update_lower_right_cell ? lower_right_cell.new_addr(addr, dest_addr) : lower_right_cell.addr
 
           log "Updating range `#{range}` to `#{upper_left_cell_new_addr}:#{lower_right_cell_new_addr}`"
@@ -458,9 +454,48 @@ class Cell
 
     log "#{addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
 
+    # # Update all non-range observers so they refer to the new address.
+    # observers.reject(&:range?).each do |observer|
+    #   observer.update_reference addr, dest_addr
+    # end
+
     # Update all non-range observers so they refer to the new address.
-    observers.reject(&:range?).each do |observer|
-      observer.update_reference addr, dest_addr
+    observers.each do |observer|
+      if observer.range? && update_ranges_mode
+        # Check if the range observer needs to be updated.
+        observer_col, observer_row = CellAddress.parse_addr(observer.addr)
+
+        update_observer =
+          case direction
+          when :left, :right
+            !affected_cols.include? CellAddress.col_addr_index(observer_col)
+          when :up, :down
+            !affected_rows.include? observer_row
+          end
+
+        if update_observer
+          puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
+
+          # observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
+          #   # Skip range if it does not contain current cell.
+          #   next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
+          #
+          #   puts ">>> Range #{range} needs to be updated"
+          #
+          #   upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
+          #   lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
+          #
+          #   lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
+          #
+          #   puts ">>> Updating range `#{range}` to `#{upper_left_cell.addr}:#{lower_right_cell_new_addr}`"
+          #
+          #   observer.content = observer.content.gsub /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell.addr.addr,
+          #                                            lower_right_cell_new_addr].join(':')
+          # end
+        end
+      else
+        observer.update_reference addr, dest_addr
+      end
     end
 
     # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
@@ -620,7 +655,11 @@ class Cell
     end
 
     # Physically remove reference if blank and no other cells point to it.
-    spreadsheet.delete_cell_addr(reference.addr) if reference.blank? && reference.observers.empty?
+    if reference.blank? && reference.observers.empty?
+      log "Removing cell #{reference.addr}"
+
+      spreadsheet.delete_cell_addr(reference.addr)
+    end
   end
 
   def add_references(new_references)
@@ -651,12 +690,12 @@ class CellReference
     @cell            = cell
     @is_absolute_col = $1 == '$'
     @is_absolute_row = $3 == '$'
-    @is_range   = is_range
+    @is_range        = is_range
   end
 
   def absolute_col?; @is_absolute_col; end
   def absolute_row?; @is_absolute_row; end
-  def range?;   @is_range;   end
+  def range?;        @is_range;        end
 
   def full_addr
     col, row = cell.addr.col_and_row
@@ -767,10 +806,9 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE     = 30
-  PP_ROW_REF_SIZE  = 5
-  PP_COL_DELIMITER = ' | '
-  PP_EMPTY_CELL    = '·'
+  PP_CELL_SIZE    = 30
+  PP_ROW_REF_SIZE = 5
+  PP_EMPTY_CELL   = '·'
 
   # List of possible exceptions.
   class AlreadyExistentCellError < StandardError; end
@@ -1027,7 +1065,7 @@ class Spreadsheet
       print ' ' * PP_ROW_REF_SIZE
       puts (1..max_col).map { |col|
         CellAddress.col_addr_name(col).to_s.rjust(index = PP_CELL_SIZE / 2 + 1) + ' ' *  (PP_CELL_SIZE - index)
-      }.join(PP_COL_DELIMITER)
+      }.join(' | ')
 
       print ' '
       print ' ' * PP_ROW_REF_SIZE
@@ -1042,7 +1080,7 @@ class Spreadsheet
         print ' '
 
         (1..max_col).each  do |col|
-          print PP_COL_DELIMITER if col > 1
+          print ' | ' if col > 1
 
           if (cell = cells[:rows][row] && cells[:rows][row][col])
             value = cell.blank? ? PP_EMPTY_CELL : cell.eval
@@ -1130,8 +1168,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; Q - Quit]: ",
-          ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; SE - Show Evaluatable Content; SR - Show References; SO - Show Observers; Q - Quit]: ",
+          ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'SE', 'SR', 'SO', 'Q'],
           'S'
         )
 
@@ -1143,7 +1181,7 @@ class Spreadsheet
           set addr, content
 
         when 'M' then
-          addr = read_cell_addr.call('Select source reference: ')
+          addr = read_cell_addr.call('Select source address: ')
 
           subaction = read_value.call(
             'Enter sub action [S - Specific position (default); U - Up; D - Down; L - Left; R - Right]: ',
@@ -1155,7 +1193,7 @@ class Spreadsheet
 
           case subaction.upcase
           when 'S' then
-            cell.move_to! read_cell_addr.call('Select destination reference: ')
+            cell.move_to! read_cell_addr.call('Select destination address: ')
           when 'U' then
             cell.move_up read_number.call('Enter # of rows (default: 1): ', 1)
           when 'D' then
@@ -1167,20 +1205,20 @@ class Spreadsheet
           end
 
         when 'C' then
-          addr      = read_cell_addr.call('Select source reference: ')
+          addr      = read_cell_addr.call('Select source address: ')
           cell      = find_or_create_cell(addr)
-          dest_addr = read_cell_addr.call('Select destination reference: ')
+          dest_addr = read_cell_addr.call('Select destination address: ')
 
           cell.copy_to dest_addr
 
         when 'R' then
-          addr = read_cell_addr.call('Select source reference: ')
+          addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
           cell.reset_content
 
         when 'CN' then
-          addr       = read_cell_addr.call('Select source reference: ')
+          addr       = read_cell_addr.call('Select source address: ')
           cell       = find_or_create_cell(addr)
           dest_range = read_cell_range.call('Select destination range: ')
 
@@ -1241,6 +1279,24 @@ class Spreadsheet
         when 'SS' then
           Spreadsheet.const_set :PP_CELL_SIZE,
                                 read_number.call("Enter new cell size (default: #{Spreadsheet::PP_CELL_SIZE}): ", Spreadsheet::PP_CELL_SIZE)
+
+        when 'SE' then
+          addr = read_cell_addr.call('Select address: ')
+          cell = find_or_create_cell(addr)
+
+          puts "Evaluatable content: `#{cell.evaluatable_content}`".light_yellow.on_black
+
+        when 'SR' then
+          addr = read_cell_addr.call('Select address: ')
+          cell = find_or_create_cell(addr)
+
+          puts "References: [#{cell.references.map(&:full_addr).join(', ')}]".light_yellow.on_black
+
+        when 'SO' then
+          addr = read_cell_addr.call('Select address: ')
+          cell = find_or_create_cell(addr)
+
+          puts "Observers: [#{cell.observers.map(&:addr).join(', ')}]".light_red.on_black
 
         when 'Q' then
           exit
@@ -1309,40 +1365,40 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # Fibonacci sequence.
-  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  a3 = spreadsheet.set(:A3, 1)
-  a4 = spreadsheet.set(:A4, '=A3+1')
-  a4.copy_to_range 'A5:A20'
-  b3 = spreadsheet.set(:B3, 1)
-  b4 = spreadsheet.set(:B4, 1)
-  b5 = spreadsheet.set(:B5, '=B3+B4')
-  b5.copy_to_range 'B6:B20'
+  # # Fibonacci sequence.
+  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  # a3 = spreadsheet.set(:A3, 1)
+  # a4 = spreadsheet.set(:A4, '=A3+1')
+  # a4.copy_to_range 'A5:A20'
+  # b3 = spreadsheet.set(:B3, 1)
+  # b4 = spreadsheet.set(:B4, 1)
+  # b5 = spreadsheet.set(:B5, '=B3+B4')
+  # b5.copy_to_range 'B6:B20'
+  #
+  # # Factorials.
+  # c1 = spreadsheet.set(:C1, 'Factorials:')
+  # c3 = spreadsheet.set(:C3, 1)
+  # c4 = spreadsheet.set(:C4, '=A4*C3')
+  # c4.copy_to_range 'C5:C20'
 
-  # Factorials.
-  c1 = spreadsheet.set(:C1, 'Factorials:')
-  c3 = spreadsheet.set(:C3, 1)
-  c4 = spreadsheet.set(:C4, '=A4*C3')
-  c4.copy_to_range 'C5:C20'
-
-  # spreadsheet.set :A1, 1
-  # a2 = spreadsheet.set(:A2, '=A1+1')
-  # last_row = 10
-  # a2.copy_to_range "A3:A#{last_row}"
-  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
-  # spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  # 4.times do |i|
-  #   col_name = CellAddress.col_addr_name(1 + i)
-  #   spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
-  # end
-  # 4.times do |i|
-  #   spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
-  # end
+  spreadsheet.set :A1, 1
+  a2 = spreadsheet.set(:A2, '=A1+1')
+  last_row = 10
+  a2.copy_to_range "A3:A#{last_row}"
+  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
+  4.times do |i|
+    col_name = CellAddress.col_addr_name(1 + i)
+    spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
+  end
+  4.times do |i|
+    spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
+  end
 
   spreadsheet.repl
 end
