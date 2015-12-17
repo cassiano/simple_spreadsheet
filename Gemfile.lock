@@ -3,9 +3,16 @@ GEM
   specs:
     after_do (0.3.1)
     ansi (1.5.0)
+    coderay (1.1.0)
     colorize (0.7.7)
     contest (0.1.3)
+    method_source (0.8.2)
     minitest (4.7.5)
+    pry (0.10.1)
+      coderay (~> 1.1.0)
+      method_source (~> 0.8.1)
+      slop (~> 3.4)
+    slop (3.6.0)
     turn (0.9.7)
       ansi
       minitest (~> 4)
@@ -17,4 +24,5 @@ DEPENDENCIES
   after_do
   colorize
   contest
+  pry
   turn

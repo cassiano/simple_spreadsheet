@@ -1,5 +1,6 @@
 require 'colorize'
 require 'after_do'
+require 'pry'
 
 class Object
   DEBUG = false
@@ -1168,8 +1169,8 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; SE - Show Evaluatable Content; SR - Show References; SO - Show Observers; Q - Quit]: ",
-          ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'SE', 'SR', 'SO', 'Q'],
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; SE - Show Evaluatable Content; SR - Show References; SO - Show Observers; D - Debug; Q - Quit]: ",
+          ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'SE', 'SR', 'SO', 'D', 'Q'],
           'S'
         )
 
@@ -1297,6 +1298,9 @@ class Spreadsheet
           cell = find_or_create_cell(addr)
 
           puts "Observers: [#{cell.observers.map(&:addr).join(', ')}]".light_red.on_black
+
+        when 'D' then
+          binding.pry
 
         when 'Q' then
           exit
