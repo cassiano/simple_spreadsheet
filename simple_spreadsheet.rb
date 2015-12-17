@@ -297,7 +297,7 @@ class Cell
         if invalid?
           eval_error_message
         elsif formula?
-          calculate_formula
+          evaluate_formula
         else    # Scalar.
           content
         end
@@ -558,8 +558,8 @@ class Cell
 
   private
 
-  def calculate_formula
-    log "Calculating formula for #{addr}"
+  def evaluate_formula
+    log "Evaluating formula for #{addr}"
 
     evaluated_content = evaluatable_content[1..-1]
 
