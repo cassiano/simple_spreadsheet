@@ -461,7 +461,7 @@ class Cell
     end
 
     # # Update all non-range observers so they refer to the new address.
-    # observers.each do |observer|
+    # observers.clone.each do |observer|
     #   if observer.range?
     #     if update_ranges_mode
     #       # Check if the range observer needs to be updated.
@@ -476,24 +476,24 @@ class Cell
     #         end
     #
     #       if update_observer
-    #         # puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
-    #         #
-    #         # observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
-    #         #   # Skip range if it does not contain current cell.
-    #         #   next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
-    #         #
-    #         #   puts ">>> Range #{range} needs to be updated"
-    #         #
-    #         #   upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
-    #         #   lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
-    #         #
-    #         #   lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
-    #         #
-    #         #   puts ">>> Updating range `#{range}` to `#{upper_left_cell.addr}:#{lower_right_cell_new_addr}`"
-    #         #
-    #         #   observer.content = observer.content.gsub /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell.addr.addr,
-    #         #                                            lower_right_cell_new_addr].join(':')
-    #         # end
+    #         puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
+    #
+    #         observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
+    #           # Skip range if it does not contain current cell.
+    #           next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
+    #
+    #           puts ">>> Range #{range} needs to be updated"
+    #
+    #           upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
+    #           lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
+    #
+    #           lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
+    #
+    #           puts ">>> Updating range `#{range}` to `#{upper_left_cell.addr}:#{lower_right_cell_new_addr}`"
+    #
+    #           observer.content = observer.content.gsub /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell.addr.addr,
+    #                                                    lower_right_cell_new_addr].join(':')
+    #         end
     #       end
     #     end
     #   else
