@@ -455,49 +455,51 @@ class Cell
 
     log "#{addr}'s observers: #{observers.map { |o| o.addr.addr }.join(', ')}"
 
-    # # Update all non-range observers so they refer to the new address.
-    # observers.reject(&:range?).each do |observer|
-    #   observer.update_reference addr, dest_addr
-    # end
-
     # Update all non-range observers so they refer to the new address.
-    observers.each do |observer|
-      if observer.range? && update_ranges_mode
-        # Check if the range observer needs to be updated.
-        observer_col, observer_row = CellAddress.parse_addr(observer.addr)
-
-        update_observer =
-          case direction
-          when :left, :right
-            !affected_cols.include? CellAddress.col_addr_index(observer_col)
-          when :up, :down
-            !affected_rows.include? observer_row
-          end
-
-        if update_observer
-          # puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
-          #
-          # observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
-          #   # Skip range if it does not contain current cell.
-          #   next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
-          #
-          #   puts ">>> Range #{range} needs to be updated"
-          #
-          #   upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
-          #   lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
-          #
-          #   lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
-          #
-          #   puts ">>> Updating range `#{range}` to `#{upper_left_cell.addr}:#{lower_right_cell_new_addr}`"
-          #
-          #   observer.content = observer.content.gsub /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell.addr.addr,
-          #                                            lower_right_cell_new_addr].join(':')
-          # end
-        end
-      else
-        observer.update_reference addr, dest_addr
-      end
+    observers.reject(&:range?).each do |observer|
+      observer.update_reference addr, dest_addr
     end
+
+    # # Update all non-range observers so they refer to the new address.
+    # observers.each do |observer|
+    #   if observer.range?
+    #     if update_ranges_mode
+    #       # Check if the range observer needs to be updated.
+    #       observer_col, observer_row = CellAddress.parse_addr(observer.addr)
+    #
+    #       update_observer =
+    #         case direction
+    #         when :left, :right
+    #           !affected_cols.include? CellAddress.col_addr_index(observer_col)
+    #         when :up, :down
+    #           !affected_rows.include? observer_row
+    #         end
+    #
+    #       if update_observer
+    #         # puts ">>> Updating 1 or more ranges in cell #{observer.addr}"
+    #         #
+    #         # observer.content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
+    #         #   # Skip range if it does not contain current cell.
+    #         #   next unless CellAddress.splat_range(upper_left_addr, lower_right_addr).flatten.include?(addr.addr)
+    #         #
+    #         #   puts ">>> Range #{range} needs to be updated"
+    #         #
+    #         #   upper_left_cell  = CellReference.new(spreadsheet.find_or_create_cell(upper_left_addr))
+    #         #   lower_right_cell = CellReference.new(spreadsheet.find_or_create_cell(lower_right_addr))
+    #         #
+    #         #   lower_right_cell_new_addr = lower_right_cell.new_addr(addr, dest_addr)
+    #         #
+    #         #   puts ">>> Updating range `#{range}` to `#{upper_left_cell.addr}:#{lower_right_cell_new_addr}`"
+    #         #
+    #         #   observer.content = observer.content.gsub /(?<![A-Z])#{range}(?![0-9])/i, [upper_left_cell.addr.addr,
+    #         #                                            lower_right_cell_new_addr].join(':')
+    #         # end
+    #       end
+    #     end
+    #   else
+    #     observer.update_reference addr, dest_addr
+    #   end
+    # end
 
     # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
     reset_content
@@ -1369,40 +1371,40 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
-  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  # a3 = spreadsheet.set(:A3, 1)
-  # a4 = spreadsheet.set(:A4, '=A3+1')
-  # a4.copy_to_range 'A5:A20'
-  # b3 = spreadsheet.set(:B3, 1)
-  # b4 = spreadsheet.set(:B4, 1)
-  # b5 = spreadsheet.set(:B5, '=B3+B4')
-  # b5.copy_to_range 'B6:B20'
-  #
-  # # Factorials.
-  # c1 = spreadsheet.set(:C1, 'Factorials:')
-  # c3 = spreadsheet.set(:C3, 1)
-  # c4 = spreadsheet.set(:C4, '=A4*C3')
-  # c4.copy_to_range 'C5:C20'
+  # Fibonacci sequence.
+  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  a3 = spreadsheet.set(:A3, 1)
+  a4 = spreadsheet.set(:A4, '=A3+1')
+  a4.copy_to_range 'A5:A20'
+  b3 = spreadsheet.set(:B3, 1)
+  b4 = spreadsheet.set(:B4, 1)
+  b5 = spreadsheet.set(:B5, '=B3+B4')
+  b5.copy_to_range 'B6:B20'
 
-  spreadsheet.set :A1, 1
-  a2 = spreadsheet.set(:A2, '=A1+1')
-  last_row = 10
-  a2.copy_to_range "A3:A#{last_row}"
-  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  4.times do |i|
-    col_name = CellAddress.col_addr_name(1 + i)
-    spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
-  end
-  4.times do |i|
-    spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
-  end
+  # Factorials.
+  c1 = spreadsheet.set(:C1, 'Factorials:')
+  c3 = spreadsheet.set(:C3, 1)
+  c4 = spreadsheet.set(:C4, '=A4*C3')
+  c4.copy_to_range 'C5:C20'
+
+  # spreadsheet.set :A1, 1
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # last_row = 10
+  # a2.copy_to_range "A3:A#{last_row}"
+  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
+  # spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
+  # 4.times do |i|
+  #   col_name = CellAddress.col_addr_name(1 + i)
+  #   spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
+  # end
+  # 4.times do |i|
+  #   spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
+  # end
 
   spreadsheet.repl
 end
