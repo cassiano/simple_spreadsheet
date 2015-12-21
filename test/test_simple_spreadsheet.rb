@@ -277,46 +277,164 @@ class TestSpreadsheet < Test::Unit::TestCase
       assert_equal a1, @spreadsheet.find_or_create_cell('a1')
     end
 
-    test '#add_col' do
-      @spreadsheet.set(:A1, 1)
-      @spreadsheet.set(:A2, 2)
-      @spreadsheet.set(:B1, 3)
-      @spreadsheet.set(:B2, 4)
+    context '#add_col' do
+      test 'works with scalar values' do
+        @spreadsheet.set(:A1, 1)
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
 
-      @spreadsheet.add_col :A
+        @spreadsheet.add_col :A
 
-      [
-        [ Cell::DEFAULT_VALUE,  :A1 ],
-        [ Cell::DEFAULT_VALUE,  :A2 ],
-        [ 1,                    :B1 ],
-        [ 2,                    :B2 ],
-        [ 3,                    :C1 ],
-        [ 4,                    :C2 ],
-        [ Cell::DEFAULT_VALUE,  :D1 ],
-        [ Cell::DEFAULT_VALUE,  :D2 ]
-      ].each do |value, addr|
-        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        [
+          [ Cell::DEFAULT_VALUE,  :A1 ],
+          [ Cell::DEFAULT_VALUE,  :A2 ],
+          [ 1,                    :B1 ],
+          [ 2,                    :B2 ],
+          [ 3,                    :C1 ],
+          [ 4,                    :C2 ],
+          [ Cell::DEFAULT_VALUE,  :D1 ],
+          [ Cell::DEFAULT_VALUE,  :D2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
+      end
+
+      test 'works with formulas' do
+      end
+
+      test 'works with formulas containing ranges inside the affected area' do
+      end
+
+      test 'works with formulas containing ranges outside the affected area' do
+        @spreadsheet.set(:A1, '= SUM(B1:D1)')
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, 5)
+        @spreadsheet.set(:C2, 6)
+        @spreadsheet.set(:D1, 7)
+
+        assert_equal 3 + 5 + 7, @spreadsheet.find_or_create_cell(:A1).eval
+
+        @spreadsheet.add_col :C
+
+        assert_equal '= sum(B1:E1)', @spreadsheet.find_or_create_cell(:A1).content
+
+        [
+          [ 3 + 0 + 5 + 7,        :A1 ],
+          [ 2,                    :A2 ],
+          [ 3,                    :B1 ],
+          [ 4,                    :B2 ],
+          [ Cell::DEFAULT_VALUE,  :C1 ],
+          [ Cell::DEFAULT_VALUE,  :C2 ],
+          [ 5,                    :D1 ],
+          [ 6,                    :D2 ],
+          [ 7,                    :E1 ],
+          [ Cell::DEFAULT_VALUE,  :E2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
       end
     end
 
-    test '#delete_col' do
-      @spreadsheet.set(:A1, 1)
-      @spreadsheet.set(:A2, 2)
-      @spreadsheet.set(:B1, 3)
-      @spreadsheet.set(:B2, 4)
-      @spreadsheet.set(:C1, 5)
+    context '#delete_col' do
+      test 'works with scalar values' do
+        @spreadsheet.set(:A1, 1)
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, 5)
 
-      @spreadsheet.delete_col :B
+        @spreadsheet.delete_col :B
 
-      [
-        [ 1,                    :A1 ],
-        [ 2,                    :A2 ],
-        [ 5,                    :B1 ],
-        [ Cell::DEFAULT_VALUE,  :B2 ],
-        [ Cell::DEFAULT_VALUE,  :C1 ],
-        [ Cell::DEFAULT_VALUE,  :C2 ]
-      ].each do |value, addr|
-        assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        [
+          [ 1,                    :A1 ],
+          [ 2,                    :A2 ],
+          [ 5,                    :B1 ],
+          [ Cell::DEFAULT_VALUE,  :B2 ],
+          [ Cell::DEFAULT_VALUE,  :C1 ],
+          [ Cell::DEFAULT_VALUE,  :C2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
+      end
+
+      test 'works with formulas' do
+        @spreadsheet.set(:A1, '= C1 + 1')
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, 5)
+
+        @spreadsheet.delete_col :B
+
+        assert_equal '= B1 + 1', @spreadsheet.find_or_create_cell(:A1).content
+
+        [
+          [ 6,                    :A1 ],
+          [ 2,                    :A2 ],
+          [ 5,                    :B1 ],
+          [ Cell::DEFAULT_VALUE,  :B2 ],
+          [ Cell::DEFAULT_VALUE,  :C1 ],
+          [ Cell::DEFAULT_VALUE,  :C2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
+      end
+
+      test 'works with formulas containing ranges inside the affected area' do
+        @spreadsheet.set(:A1, 1)
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, 5)
+        @spreadsheet.set(:C2, 6)
+        @spreadsheet.set(:D1, '= SUM(A1:C1)')
+
+        assert_equal 1 + 3 + 5, @spreadsheet.find_or_create_cell(:D1).eval
+
+        @spreadsheet.delete_col :B
+
+        assert_equal '= sum(A1:B1)', @spreadsheet.find_or_create_cell(:C1).content
+
+        [
+          [ 1,                    :A1 ],
+          [ 2,                    :A2 ],
+          [ 5,                    :B1 ],
+          [ 6,                    :B2 ],
+          [ 1 + 5,                :C1 ],
+          [ Cell::DEFAULT_VALUE,  :C2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
+      end
+
+      test 'works with formulas containing ranges outside the affected area' do
+        @spreadsheet.set(:A1, '= SUM(B1:D1)')
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, 5)
+        @spreadsheet.set(:C2, 6)
+        @spreadsheet.set(:D1, 7)
+
+        assert_equal 3 + 5 + 7, @spreadsheet.find_or_create_cell(:A1).eval
+
+        @spreadsheet.delete_col :C
+
+        assert_equal '= sum(B1:C1)', @spreadsheet.find_or_create_cell(:A1).content
+
+        [
+          [ 3 + 7,                :A1 ],
+          [ 2,                    :A2 ],
+          [ 3,                    :B1 ],
+          [ 4,                    :B2 ],
+          [ 7,                    :C1 ],
+          [ Cell::DEFAULT_VALUE,  :C2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
       end
     end
 
