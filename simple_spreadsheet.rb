@@ -672,6 +672,10 @@ class CellReference
     addr_parts.join
   end
 
+  def to_s
+    range? ? full_addr.downcase : full_addr
+  end
+
   # Calculates a cell's new reference when an observer cell is copied from `observer_source_addr` to `observer_dest_addr`.
   def new_addr(observer_source_addr, observer_dest_addr)
     col_diff = absolute_col? ? 0 : observer_dest_addr.col_index - observer_source_addr.col_index
@@ -1261,7 +1265,7 @@ class Spreadsheet
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "References: [#{cell.references.map(&:full_addr).join(', ')}]".light_green.on_black
+          puts "References: [#{cell.references.map(&:to_s).join(', ')}]".light_green.on_black
 
         when 'SO' then
           addr = read_cell_addr.call('Select address: ')
