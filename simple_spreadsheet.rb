@@ -1261,7 +1261,7 @@ class Spreadsheet
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "References: [#{cell.references.map(&:full_addr).join(', ')}]".light_yellow.on_black
+          puts "References: [#{cell.references.map(&:full_addr).join(', ')}]".light_green.on_black
 
         when 'SO' then
           addr = read_cell_addr.call('Select address: ')
