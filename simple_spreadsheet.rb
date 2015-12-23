@@ -298,7 +298,7 @@ class Cell
         if invalid?
           eval_error_message
         elsif formula?
-          calculate_formula
+          evaluate_formula
         else    # Scalar.
           content
         end
@@ -309,7 +309,7 @@ class Cell
     end
 
     # Fire all observers if evaluated content has changed.
-    fire_observers if previous_content != @evaluated_content
+    fire_observers if previous_content.to_s != @evaluated_content.to_s
 
     @evaluated_content || DEFAULT_VALUE
   end
@@ -518,7 +518,7 @@ class Cell
 
   private
 
-  def calculate_formula
+  def evaluate_formula
     log "Calculating formula for #{addr}"
 
     evaluated_content = evaluatable_content[1..-1]
@@ -1271,7 +1271,7 @@ class Spreadsheet
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "Observers: [#{cell.observers.map(&:addr).join(', ')}]".light_red.on_black
+          puts "Observers: [#{cell.observers.map(&:to_s).join(', ')}]".light_red.on_black
 
         when 'D' then
           binding.pry
