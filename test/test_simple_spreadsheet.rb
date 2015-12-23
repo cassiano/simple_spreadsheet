@@ -245,12 +245,12 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 0, @spreadsheet.cell_count
       end
 
-      test 'counts non-empty spreadsheets correctly' do
-        @spreadsheet.find_or_create_cell(:A1)
-        @spreadsheet.find_or_create_cell(:A2)
-        @spreadsheet.find_or_create_cell(:A3)
+      test 'ignores blank cells' do
+        a1 = @spreadsheet.find_or_create_cell(:A1)
+        a2 = @spreadsheet.set(:A2, 2)
+        a3 = @spreadsheet.set(:A3, 3)
 
-        assert_equal 3, @spreadsheet.cell_count
+        assert_equal 2, @spreadsheet.cell_count
       end
     end
 

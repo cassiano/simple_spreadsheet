@@ -791,7 +791,7 @@ class Spreadsheet
   end
 
   def cell_count
-    cells[:all].values.compact.size
+    cells[:all].values.compact.reject(&:blank?).size
   end
 
   def find_or_create_cell(addr, content = nil)
@@ -1429,40 +1429,40 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # Fibonacci sequence.
-  b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
-  a3 = spreadsheet.set(:A3, 1)
-  a4 = spreadsheet.set(:A4, 1)
-  a4.copy_to_range 'A5:A20'
-  b3 = spreadsheet.set(:B3, 1)
-  b4 = spreadsheet.set(:B4, 1)
-  b5 = spreadsheet.set(:B5, '=SUM(B3:B4)')
-  b5.copy_to_range 'B6:B20'
+  # # Fibonacci sequence.
+  # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
+  # a3 = spreadsheet.set(:A3, 1)
+  # a4 = spreadsheet.set(:A4, 1)
+  # a4.copy_to_range 'A5:A20'
+  # b3 = spreadsheet.set(:B3, 1)
+  # b4 = spreadsheet.set(:B4, 1)
+  # b5 = spreadsheet.set(:B5, '=SUM(B3:B4)')
+  # b5.copy_to_range 'B6:B20'
+  #
+  # # Factorials.
+  # c1 = spreadsheet.set(:C1, 'Factorials:')
+  # c3 = spreadsheet.set(:C3, 1)
+  # c4 = spreadsheet.set(:C4, '=A4*C3')
+  # c4.copy_to_range 'C5:C20'
 
-  # Factorials.
-  c1 = spreadsheet.set(:C1, 'Factorials:')
-  c3 = spreadsheet.set(:C3, 1)
-  c4 = spreadsheet.set(:C4, '=A4*C3')
-  c4.copy_to_range 'C5:C20'
-
-  # spreadsheet.set :A1, 1
-  # a2 = spreadsheet.set(:A2, '=A1+1')
-  # last_row = 10
-  # a2.copy_to_range "A3:A#{last_row}"
-  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  # spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
-  # spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  # 4.times do |i|
-  #   col_name = CellAddress.col_addr_name(1 + i)
-  #   spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
-  # end
-  # 4.times do |i|
-  #   spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
-  # end
+  spreadsheet.set :A1, 1
+  a2 = spreadsheet.set(:A2, '=A1+1')
+  last_row = 10
+  a2.copy_to_range "A3:A#{last_row}"
+  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
+  spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
+  4.times do |i|
+    col_name = CellAddress.col_addr_name(1 + i)
+    spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
+  end
+  4.times do |i|
+    spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
+  end
 
   spreadsheet.repl
 end
