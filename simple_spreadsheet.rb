@@ -622,7 +622,7 @@ class Cell
     if reference.blank? && reference.observers.empty?
       log "Removing cell #{reference.addr}"
 
-      spreadsheet.delete_cell_addr(reference.addr)
+      spreadsheet.delete_cell_addr reference.addr
     end
   end
 
@@ -1460,13 +1460,10 @@ def run!
   spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
   spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
   spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  4.times do |i|
-    col_name = CellAddress.col_addr_name(1 + i)
-    spreadsheet.set [col_name, last_row + 8], "=col_num(#{col_name}1:#{col_name}#{last_row})"
-  end
-  4.times do |i|
-    spreadsheet.set [:A, last_row + 9 + i], "=row_num(B#{last_row + 9 + i}:D#{last_row + 9 + i})"
-  end
+  cell = spreadsheet.set([:A, last_row + 8], "=col_num(A1:A#{last_row})")
+  cell.copy_to_range "B#{last_row + 8}:D#{last_row + 8}"
+  cell = spreadsheet.set [:A, last_row + 9], "=row_num(B#{last_row + 9}:D#{last_row + 9})"
+  cell.copy_to_range "A#{last_row + 9 + 1}:A#{last_row + 9 + 3}"
 
   spreadsheet.repl
 end
