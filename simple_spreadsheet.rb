@@ -774,12 +774,12 @@ class Formula
 end
 
 class Spreadsheet
-  PP_CELL_SIZE      = 30
-  PP_ROW_REF_SIZE   = 5
-  PP_EMPTY_CELL     = '·'
-  PP_VERT           = '┃'
-  PP_HORIZ          = '━'
-  PP_VERT_AND_HORIZ = '╋'
+  PP_CELL_SIZE               = 30
+  PP_ROW_REF_SIZE            = 5
+  PP_EMPTY_CELL              = '·'
+  PP_VERT_BOX_CHAR           = '│'
+  PP_HORIZ_BOX_CHAR          = '─'
+  PP_VERT_AND_HORIZ_BOX_CHAR = '┼'
 
   # List of possible exceptions.
   class AlreadyExistentCellError < StandardError; end
@@ -1044,13 +1044,13 @@ class Spreadsheet
       print ' ' * PP_ROW_REF_SIZE
       puts (1..max_col).map { |col|
         CellAddress.col_addr_name(col).to_s.rjust(index = PP_CELL_SIZE / 2 + 1) + ' ' *  (PP_CELL_SIZE - index)
-      }.join(" #{PP_VERT} ")
+      }.join(" #{PP_VERT_BOX_CHAR} ")
 
       print ' '
       print ' ' * PP_ROW_REF_SIZE
       max_col.times do |i|
-        print PP_HORIZ * (PP_CELL_SIZE + 1 + (i == 0 ? 0 : 1))
-        print PP_VERT_AND_HORIZ if i < max_col - 1
+        print PP_HORIZ_BOX_CHAR * (PP_CELL_SIZE + 1 + (i == 0 ? 0 : 1))
+        print PP_VERT_AND_HORIZ_BOX_CHAR if i < max_col - 1
       end
       puts
 
@@ -1059,7 +1059,7 @@ class Spreadsheet
         print ' '
 
         (1..max_col).each  do |col|
-          print ' ┃ ' if col > 1
+          print " #{PP_VERT_BOX_CHAR} " if col > 1
 
           if (cell = cells[:rows][row] && cells[:rows][row][col])
             value = cell.blank? ? PP_EMPTY_CELL : cell.eval
