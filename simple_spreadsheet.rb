@@ -162,8 +162,11 @@ class CellAddress
     parse_addr(addr).join.to_sym
   end
 
-  def self.parse_addr(addr)
-    addr.to_s =~ CELL_COORD_WITH_PARENS_REG_EXP && [$2.upcase.to_sym, $4.to_i]
+  def self.parse_addr(addr, col_index_instead_of_name: false)
+    addr.to_s =~ CELL_COORD_WITH_PARENS_REG_EXP && [
+      col_index_instead_of_name ? col_addr_index($2) : $2.upcase.to_sym,
+      $4.to_i
+    ]
   end
 
   def self.col_addr_index(col_addr)
@@ -247,14 +250,12 @@ class Cell
     if formula?
       # Splat ranges, e.g., replace 'A1:A3' by '[[A1, A2, A3]]'.
       evaluatable_content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
-        upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
-        lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
-        upper_left_col                   = CellAddress.col_addr_index(upper_left_col)
-        lower_right_col                  = CellAddress.col_addr_index(lower_right_col)
+        upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr, col_index_instead_of_name: true)
+        lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr, col_index_instead_of_name: true)
 
         @evaluatable_content.gsub!  /(?<![A-Z])#{Regexp.escape(range)}(?![0-9])/i,
                                     '[' + CellAddress.splat_range(upper_left_addr, lower_right_addr).map { |row|
-                                      '[' + row.map { |addr| addr.addr.downcase }.join(',') + ']'
+                                      '[' + row.map { |addr| addr.addr.downcase }.join(', ') + ']'
                                     }.join(', ') + '],' + {
                                       upper_left: [upper_left_col, upper_left_row],
                                       lower_right: [lower_right_col, lower_right_row]
@@ -416,13 +417,13 @@ class Cell
         new_content = content.clone
 
         content.scan(CellAddress::CELL_RANGE_WITH_PARENS_REG_EXP).uniq.each do |(range, upper_left_addr, lower_right_addr)|
-          upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr)
-          lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr)
+          upper_left_col, upper_left_row   = CellAddress.parse_addr(upper_left_addr, col_index_instead_of_name: true)
+          lower_right_col, lower_right_row = CellAddress.parse_addr(lower_right_addr, col_index_instead_of_name: true)
 
           update_upper_left_cell =
             case direction
             when :left, :right
-              affected_cols.include? CellAddress.col_addr_index(upper_left_col)
+              affected_cols.include? upper_left_col
             when :up, :down
               affected_rows.include? upper_left_row
             end
@@ -430,7 +431,7 @@ class Cell
           update_lower_right_cell =
             case direction
             when :left, :right
-              affected_cols.include? CellAddress.col_addr_index(lower_right_col)
+              affected_cols.include? lower_right_col
             when :up, :down
               affected_rows.include? lower_right_row
             end
@@ -883,8 +884,8 @@ class Spreadsheet
   end
 
   def move_col(source_col, dest_col, count = 1)
-    source_col = CellAddress.col_addr_index(source_col)  unless source_col.is_a?(Fixnum)
-    dest_col   = CellAddress.col_addr_index(dest_col)    unless dest_col.is_a?(Fixnum)
+    source_col = CellAddress.col_addr_index(source_col) unless source_col.is_a?(Fixnum)
+    dest_col   = CellAddress.col_addr_index(dest_col) unless dest_col.is_a?(Fixnum)
 
     if dest_col >= source_col
       return if dest_col - (source_col + count - 1) <= 1
@@ -942,8 +943,8 @@ class Spreadsheet
   end
 
   def copy_col(source_col, dest_col, count = 1)
-    source_col = CellAddress.col_addr_index(source_col)  unless source_col.is_a?(Fixnum)
-    dest_col   = CellAddress.col_addr_index(dest_col)    unless dest_col.is_a?(Fixnum)
+    source_col = CellAddress.col_addr_index(source_col) unless source_col.is_a?(Fixnum)
+    dest_col   = CellAddress.col_addr_index(dest_col) unless dest_col.is_a?(Fixnum)
 
     cells[:cols].select { |(col, _)| col >= source_col && col < source_col + count }.sort.each do |(_, rows)|
       rows.sort.each do |(_, cell)|
@@ -1146,7 +1147,7 @@ class Spreadsheet
         last_change = Time.now
 
         action = read_value.call(
-          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; SE - Show Evaluatable Content; SR - Show References; SO - Show Observers; D - Debug; Q - Quit]: ",
+          "Enter action [S - Set cell (default); M - Move cell; C - Copy cell to cell; R - Reset cell; CN - Copy cell to raNge; AC - Add Col; AR - Add Row; DC - Delete Col; DR - Delete Row; MC - Move Col; MR - Move Row; CC - Copy Col; CR - Copy Row; SS - Set cell Size; SE - Show Evaluatable content; SR - Show References; SO - Show Observers; D - Debug; Q - Quit]: ",
           ['S', 'M', 'C', 'R', 'CN', 'AR', 'AC', 'DC', 'DR', 'MC', 'MR', 'CC', 'CR', 'SS', 'SE', 'SR', 'SO', 'D', 'Q'],
           'S'
         )
@@ -1326,8 +1327,8 @@ class Spreadsheet
             next if cell_addrs_to_be_updated.include?(observer.addr)
 
             # Check if the (range) observer needs to be updated.
-            observer_col, _       = CellAddress.parse_addr(observer.addr)
-            observer_needs_update = !affected_cols.include?(CellAddress.col_addr_index(observer_col))
+            observer_col, _       = CellAddress.parse_addr(observer.addr, col_index_instead_of_name: true)
+            observer_needs_update = !affected_cols.include?(observer_col)
 
             cell_addrs_to_be_updated << observer.addr if observer_needs_update
           end
@@ -1377,7 +1378,7 @@ class Spreadsheet
             start_col = count >= 0 ? :A : :AAA
 
             [
-              CellAddress.new(start_col,                                     1),
+              CellAddress.new(start_col, 1),
               CellAddress.new(CellAddress.col_addr_index(start_col) + count, 1)
             ]
           elsif affected_rows
