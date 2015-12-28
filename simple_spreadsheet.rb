@@ -464,6 +464,16 @@ class Cell
 
     # Reset the current cell's value, with the added value that it will automatically reevaluate all remaining (range) observers.
     reset_content
+
+    delete_if_blank_and_no_observers
+  end
+
+  def delete_if_blank_and_no_observers
+    if blank? && observers.empty?
+      log "Removing cell #{addr}"
+
+      spreadsheet.delete_cell_addr addr
+    end
   end
 
   def move_right(col_count = 1, update_ranges_mode: false, affected_cols: nil)
@@ -618,12 +628,7 @@ class Cell
       self.max_reference_timestamp = find_max_reference_timestamp
     end
 
-    # Physically remove reference if blank and no other cells point to it.
-    if reference.blank? && reference.observers.empty?
-      log "Removing cell #{reference.addr}"
-
-      spreadsheet.delete_cell_addr reference.addr
-    end
+    reference.delete_if_blank_and_no_observers
   end
 
   def add_references(new_references)
