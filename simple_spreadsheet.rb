@@ -1313,6 +1313,9 @@ class Spreadsheet
     cells[:all].delete addr.addr
     cells[:cols][col].delete row
     cells[:rows][row].delete col
+
+    cells[:cols].delete(col) if cells[:cols][col].empty?
+    cells[:rows].delete(row) if cells[:rows][row].empty?
   end
 
   private
