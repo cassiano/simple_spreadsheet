@@ -405,7 +405,7 @@ class Cell
     spreadsheet.set dest_addr, dest_content
   end
 
-  def move_to!(dest_addr, update_ranges_mode: false, direction: nil, affected_cols: nil, affected_rows: nil)
+  def move_to(dest_addr, update_ranges_mode: false, direction: nil, affected_cols: nil, affected_rows: nil)
     log "Moving #{addr} to #{dest_addr}"
 
     dest_addr = CellAddress.self_or_new(dest_addr)
@@ -467,19 +467,19 @@ class Cell
   end
 
   def move_right(col_count = 1, update_ranges_mode: false, affected_cols: nil)
-    move_to! addr.right_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :right, affected_cols: affected_cols
+    move_to addr.right_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :right, affected_cols: affected_cols
   end
 
   def move_left(col_count = 1, update_ranges_mode: false, affected_cols: nil)
-    move_to! addr.left_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :left, affected_cols: affected_cols
+    move_to addr.left_neighbor(col_count), update_ranges_mode: update_ranges_mode, direction: :left, affected_cols: affected_cols
   end
 
   def move_down(row_count = 1, update_ranges_mode: false, affected_rows: nil)
-    move_to! addr.lower_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :down, affected_rows: affected_rows
+    move_to addr.lower_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :down, affected_rows: affected_rows
   end
 
   def move_up(row_count = 1, update_ranges_mode: false, affected_rows: nil)
-    move_to! addr.upper_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :up, affected_rows: affected_rows
+    move_to addr.upper_neighbor(row_count), update_ranges_mode: update_ranges_mode, direction: :up, affected_rows: affected_rows
   end
 
   def update_reference(old_addr, new_addr)
@@ -1172,7 +1172,7 @@ class Spreadsheet
 
           case subaction.upcase
           when 'S' then
-            cell.move_to! read_cell_addr.call('Select destination address: ')
+            cell.move_to read_cell_addr.call('Select destination address: ')
           when 'U' then
             cell.move_up read_number.call('Enter # of rows (default: 1): ', 1)
           when 'D' then

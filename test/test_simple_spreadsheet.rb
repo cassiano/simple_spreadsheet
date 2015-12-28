@@ -300,10 +300,61 @@ class TestSpreadsheet < Test::Unit::TestCase
         end
       end
 
-      test 'works with formulas' do
+      test 'works with formulas, referencing cells before or after the added column(s)' do
+        @spreadsheet.set(:A1, 1)
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, '=A1+C1')
+        @spreadsheet.set(:B2, 3)
+        @spreadsheet.set(:C1, 4)
+        @spreadsheet.set(:C2, 5)
+
+        @spreadsheet.add_col :B
+
+        assert_equal '=A1+D1', @spreadsheet.find_or_create_cell(:C1).content
+
+        [
+          [ 1,                    :A1 ],
+          [ 2,                    :A2 ],
+          [ Cell::DEFAULT_VALUE,  :B1 ],
+          [ Cell::DEFAULT_VALUE,  :B2 ],
+          [ 1 + 4,                :C1 ],
+          [ 3,                    :C2 ],
+          [ 4,                    :D1 ],
+          [ 5,                    :D2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
       end
 
       test 'works with formulas containing ranges inside the affected area' do
+        @spreadsheet.set(:A1, 1)
+        @spreadsheet.set(:A2, 2)
+        @spreadsheet.set(:B1, 3)
+        @spreadsheet.set(:B2, 4)
+        @spreadsheet.set(:C1, '= SUM(A1:B1)')
+        @spreadsheet.set(:C2, 6)
+        @spreadsheet.set(:D1, 7)
+
+        assert_equal 1 + 3, @spreadsheet.find_or_create_cell(:C1).eval
+
+        @spreadsheet.add_col :B
+
+        assert_equal '= sum(A1:C1)', @spreadsheet.find_or_create_cell(:D1).content
+
+        [
+          [ 1,                    :A1 ],
+          [ 2,                    :A2 ],
+          [ Cell::DEFAULT_VALUE,  :B1 ],
+          [ Cell::DEFAULT_VALUE,  :B2 ],
+          [ 3,                    :C1 ],
+          [ 4,                    :C2 ],
+          [ 1 + 0 + 3,            :D1 ],
+          [ 6,                    :D2 ],
+          [ 7,                    :E1 ],
+          [ Cell::DEFAULT_VALUE,  :E2 ]
+        ].each do |value, addr|
+          assert_equal value, @spreadsheet.find_or_create_cell(addr).eval
+        end
       end
 
       test 'works with formulas containing ranges outside the affected area' do
@@ -1534,7 +1585,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal 1 + 8 + 4, a4.eval
       end
 
-      test '#move_to! should work with relative references' do
+      test '#move_to should work with relative references' do
         a1 = @spreadsheet.set(:A1, 1)
         a2 = @spreadsheet.set(:A2, 2)
         a3 = @spreadsheet.set(:A3, '= A1 + A2')
@@ -1548,7 +1599,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal [a3], a1.observers
 
         # Move A1 to C5, so (old) A1 actually "becomes" C5.
-        a1.move_to! :C5
+        a1.move_to :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         c5 = @spreadsheet.find_or_create_cell(:C5)
@@ -1568,7 +1619,7 @@ class TestSpreadsheet < Test::Unit::TestCase
         assert_equal a4_last_evaluated_at, a4.last_evaluated_at
       end
 
-      test '#move_to! should work with absolute references as well' do
+      test '#move_to should work with absolute references as well' do
         a1 = @spreadsheet.set(:A1, 1)
         a2 = @spreadsheet.set(:A2, 2)
         a3 = @spreadsheet.set(:A3, '= $A1 + A$2')
@@ -1581,7 +1632,7 @@ class TestSpreadsheet < Test::Unit::TestCase
 
         assert_equal [a3], a1.observers
 
-        a1.move_to! :C5
+        a1.move_to :C5
 
         # Assert A3's formula and references have been updated and that it's (evaluated) value hasn't changed.
         c5 = @spreadsheet.find_or_create_cell(:C5)
