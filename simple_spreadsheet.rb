@@ -776,7 +776,7 @@ end
 class Spreadsheet
   PP_CELL_SIZE               = 30
   PP_ROW_REF_SIZE            = 5
-  PP_EMPTY_CELL              = '·'
+  PP_EMPTY_CELL              = '˙'
   PP_VERT_BOX_CHAR           = '│'
   PP_HORIZ_BOX_CHAR          = '─'
   PP_VERT_AND_HORIZ_BOX_CHAR = '┼'
