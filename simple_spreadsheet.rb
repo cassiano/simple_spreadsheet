@@ -469,11 +469,7 @@ class Cell
   end
 
   def delete_if_blank_and_no_observers
-    if blank? && observers.empty?
-      log "Removing cell #{addr}"
-
-      spreadsheet.delete_cell_addr addr
-    end
+    spreadsheet.delete_cell_addr(addr) if blank? && observers.empty?
   end
 
   def move_right(col_count = 1, update_ranges_mode: false, affected_cols: nil)
@@ -1307,6 +1303,8 @@ class Spreadsheet
   end
 
   def delete_cell_addr(addr)
+    log "Deleting cell #{addr}"
+
     addr = CellAddress.self_or_new(addr)
 
     col = addr.col_index
@@ -1326,33 +1324,31 @@ class Spreadsheet
   private
 
   def update_range_cells_not_in_affected_area(count, affected_cols: nil, affected_rows: nil)
+    raise "Either `affected_cols` or `affected_rows` should be set." unless affected_cols || affected_rows
+
     cell_addrs_to_be_updated = Set.new
 
     if affected_cols
       cells[:cols].select { |(col, _)| affected_cols.include?(col) }.each do |(_, rows)|
         rows.each do |(_, cell)|
           cell.observers.select(&:range?).each do |observer|
-            next if cell_addrs_to_be_updated.include?(observer.addr)
+            next if cell_addrs_to_be_updated.include?(observer.addr)    # Skip if observer already collected.
 
-            # Check if the (range) observer needs to be updated.
-            observer_col, _       = CellAddress.parse_addr(observer.addr, col_index_instead_of_name: true)
-            observer_needs_update = !affected_cols.include?(observer_col)
-
-            cell_addrs_to_be_updated << observer.addr if observer_needs_update
+            # Collect the (range) observer if it needs to be updated.
+            observer_col, _ = CellAddress.parse_addr(observer.addr, col_index_instead_of_name: true)
+            cell_addrs_to_be_updated << observer.addr unless affected_cols.include?(observer_col)
           end
         end
       end
-    elsif affected_rows
-      cells[:rows].select { |(row, _)| affected_rows.include?(row) }.each do |(_, rows)|
-        rows.each do |(_, cell)|
+    else    # Use affected_rows.
+      cells[:rows].select { |(row, _)| affected_rows.include?(row) }.each do |(_, cols)|
+        cols.each do |(_, cell)|
           cell.observers.select(&:range?).each do |observer|
-            next if cell_addrs_to_be_updated.include?(observer.addr)
+            next if cell_addrs_to_be_updated.include?(observer.addr)    # Skip if observer already collected.
 
-            # Check if the (range) observer needs to be updated.
-            _, observer_row       = CellAddress.parse_addr(observer.addr)
-            observer_needs_update = !affected_rows.include?(observer_row)
-
-            cell_addrs_to_be_updated << observer.addr if observer_needs_update
+            # Collect the (range) observer if it needs to be updated.
+            _, observer_row = CellAddress.parse_addr(observer.addr)
+            cell_addrs_to_be_updated << observer.addr unless affected_rows.include?(observer_row)
           end
         end
       end
@@ -1370,7 +1366,7 @@ class Spreadsheet
         if affected_cols
           update_upper_left_cell  = affected_cols.include?(upper_left_cell_addr.col_index)
           update_lower_right_cell = affected_cols.include?(lower_right_cell_addr.col_index)
-        elsif affected_rows
+        else    # Use affected_rows.
           update_upper_left_cell  = affected_rows.include?(upper_left_cell_addr.row)
           update_lower_right_cell = affected_rows.include?(lower_right_cell_addr.row)
         end
@@ -1457,21 +1453,28 @@ def run!
   # c4 = spreadsheet.set(:C4, '=A4*C3')
   # c4.copy_to_range 'C5:C20'
 
-  spreadsheet.set :A1, 1
-  a2 = spreadsheet.set(:A2, '=A1+1')
-  last_row = 10
-  a2.copy_to_range "A3:A#{last_row}"
-  spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
-  spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
-  spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
-  cell = spreadsheet.set([:A, last_row + 8], "=col_num(A1:A#{last_row})")
-  cell.copy_to_range "B#{last_row + 8}:D#{last_row + 8}"
-  cell = spreadsheet.set [:A, last_row + 9], "=row_num(B#{last_row + 9}:D#{last_row + 9})"
-  cell.copy_to_range "A#{last_row + 9 + 1}:A#{last_row + 9 + 3}"
+  # spreadsheet.set :A1, 1
+  # a2 = spreadsheet.set(:A2, '=A1+1')
+  # last_row = 10
+  # a2.copy_to_range "A3:A#{last_row}"
+  # spreadsheet.set [:A, last_row + 1], "=sum(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 2], "=average(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 3], "=count(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 4], "=min(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 5], "=max(A1:A#{last_row})"
+  # spreadsheet.set [:A, last_row + 6], "=col_count(A1:D#{last_row})"
+  # spreadsheet.set [:A, last_row + 7], "=row_count(A1:D#{last_row})"
+  # cell = spreadsheet.set([:A, last_row + 8], "=col_num(A1:A#{last_row})")
+  # cell.copy_to_range "B#{last_row + 8}:D#{last_row + 8}"
+  # cell = spreadsheet.set [:A, last_row + 9], "=row_num(B#{last_row + 9}:D#{last_row + 9})"
+  # cell.copy_to_range "A#{last_row + 9 + 1}:A#{last_row + 9 + 3}"
+
+  spreadsheet.set :A1, '=sum(a2:a4)'
+  spreadsheet.set :A2, 1
+  spreadsheet.set :A3, 2
+  spreadsheet.set :A4, 3
+  spreadsheet.set :A5, '=sum(a2:a4)'
+
 
   spreadsheet.repl
 end
