@@ -1264,19 +1264,19 @@ class Spreadsheet
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "Evaluatable content: `#{cell.evaluatable_content}`".light_yellow.on_black
+          puts "Evaluatable content: `#{cell.evaluatable_content}`".light_white.on_magenta
 
         when 'SR' then
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "References: [#{cell.references.map(&:to_s).join(', ')}]".light_green.on_black
+          puts "References: [#{cell.references.map(&:to_s).join(', ')}]".light_white.on_blue
 
         when 'SO' then
           addr = read_cell_addr.call('Select address: ')
           cell = find_or_create_cell(addr)
 
-          puts "Observers: [#{cell.observers.map(&:to_s).join(', ')}]".light_red.on_black
+          puts "Observers: [#{cell.observers.map(&:to_s).join(', ')}]".light_white.on_red
 
         when 'D' then
           binding.pry
