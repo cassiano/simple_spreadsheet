@@ -120,8 +120,9 @@ class CellAddress
     @row ||= col_and_row[1]
   end
 
-  def col_and_row
-    @col_and_row ||= parse_addr(addr)
+  def col_and_row(col_index_instead_of_name: false)
+    @col_and_row ||= {}
+    @col_and_row[col_index_instead_of_name] ||= parse_addr(addr, col_index_instead_of_name: col_index_instead_of_name)
   end
 
   def neighbor(col_count: 0, row_count: 0)
@@ -181,8 +182,8 @@ class CellAddress
     upper_left_addr  = new(upper_left_addr)  unless upper_left_addr.is_a?(self)
     lower_right_addr = new(lower_right_addr) unless lower_right_addr.is_a?(self)
 
-    ul_col, ul_row = upper_left_addr.col_and_row
-    lr_col, lr_row = lower_right_addr.col_and_row
+    ul_col, ul_row = upper_left_addr.col_and_row(col_index_instead_of_name: true)
+    lr_col, lr_row = lower_right_addr.col_and_row(col_index_instead_of_name: true)
 
     (ul_row..lr_row).map do |row|
       (ul_col..lr_col).map do |col|
