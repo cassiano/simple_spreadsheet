@@ -1470,12 +1470,49 @@ def run!
   # cell = spreadsheet.set [:A, last_row + 9], "=row_num(B#{last_row + 9}:D#{last_row + 9})"
   # cell.copy_to_range "A#{last_row + 9 + 1}:A#{last_row + 9 + 3}"
 
-  spreadsheet.set :A1, '=sum(a2:a4)'
-  spreadsheet.set :A2, 1
-  spreadsheet.set :A3, 2
-  spreadsheet.set :A4, 3
-  spreadsheet.set :A5, '=sum(a2:a4)'
+  # spreadsheet.set :A1, '=sum(a2:a4)'
+  # spreadsheet.set :A2, 1
+  # spreadsheet.set :A3, 2
+  # spreadsheet.set :A4, 3
+  # spreadsheet.set :A5, '=sum(a2:a4)'
 
+  square_size = 20
+
+  set_range = -> (from, to) do
+    [[CellAddress.col_addr_name(from[0]), from[1]].join, [CellAddress.col_addr_name(to[0]), to[1]].join].join(':')
+  end
+
+  fill_range = -> (cell, from, to) do
+    cell.copy_to_range set_range.call(from, to)
+  end
+
+  upper_left_corner = spreadsheet.set :A1, 1
+  upper_left_corner_right_neighbor = spreadsheet.set :B1, '=A1+1'
+  upper_left_corner_right_neighbor.copy_to_range set_range.call([CellAddress.col_addr_index(:C), 1], [square_size, 1])
+  upper_right_corner_bottom_neighbor = spreadsheet.set [square_size, 2], "=#{CellAddress.col_addr_name(square_size)}1+1"
+  upper_right_corner_bottom_neighbor.copy_to_range set_range.call([square_size, 3], [square_size, square_size])
+  lower_right_corner_left_neighbor =
+    spreadsheet.set [square_size - 1, square_size], "=#{CellAddress.col_addr_name(square_size)}#{square_size}+1"
+  lower_right_corner_left_neighbor.copy_to_range(
+    set_range.call [CellAddress.col_addr_index(:A), square_size], [square_size - 2, square_size]
+  )
+  bottom_left_corner_top_neighbor = spreadsheet.set [:A, square_size - 1], "=A#{square_size}+1"
+  bottom_left_corner_top_neighbor.copy_to_range(
+    set_range.call [CellAddress.col_addr_index(:A), 2], [CellAddress.col_addr_index(:A), square_size - 2]
+  )
+
+  from = 2
+  to   = square_size - 1
+
+  while from <= to do
+    fill_range.call upper_left_corner_right_neighbor,   [from,  from],      [to,      from]
+    fill_range.call upper_right_corner_bottom_neighbor, [to,    from + 1],  [to,      to]
+    fill_range.call lower_right_corner_left_neighbor,   [from,  to],        [to - 1,  to]
+    fill_range.call bottom_left_corner_top_neighbor,    [from,  from + 1],  [from,    to - 1]
+
+    from += 1
+    to   -= 1
+  end
 
   spreadsheet.repl
 end
