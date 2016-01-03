@@ -1438,7 +1438,8 @@ end
 def run!
   spreadsheet = Spreadsheet.new
 
-  # # Fibonacci sequence.
+  # Sample 1: Fibonacci sequence (for testing the performance of cyclical dependency checks) and factorials.
+  #
   # b1 = spreadsheet.set(:B1, 'Fibonacci sequence:')
   # a3 = spreadsheet.set(:A3, 1)
   # a4 = spreadsheet.set(:A4, 1)
@@ -1448,12 +1449,13 @@ def run!
   # b5 = spreadsheet.set(:B5, '=SUM(B3:B4)')
   # b5.copy_to_range 'B6:B20'
   #
-  # # Factorials.
   # c1 = spreadsheet.set(:C1, 'Factorials:')
   # c3 = spreadsheet.set(:C3, 1)
   # c4 = spreadsheet.set(:C4, '=A4*C3')
   # c4.copy_to_range 'C5:C20'
 
+  # Sample 2: Multiple formula functions.
+  #
   # spreadsheet.set :A1, 1
   # a2 = spreadsheet.set(:A2, '=A1+1')
   # last_row = 10
@@ -1470,13 +1472,17 @@ def run!
   # cell = spreadsheet.set [:A, last_row + 9], "=row_num(B#{last_row + 9}:D#{last_row + 9})"
   # cell.copy_to_range "A#{last_row + 9 + 1}:A#{last_row + 9 + 3}"
 
+  # Sample 3: Simple sequence for testing range updates.
+  #
   # spreadsheet.set :A1, '=sum(a2:a4)'
   # spreadsheet.set :A2, 1
   # spreadsheet.set :A3, 2
   # spreadsheet.set :A4, 3
   # spreadsheet.set :A5, '=sum(a2:a4)'
 
-  square_size = 20
+  # Sample 4: Retangular sequence.
+  #
+  rectangle = [5, 35]
 
   set_range = -> (from, to) do
     [[CellAddress.col_addr_name(from[0]), from[1]].join, [CellAddress.col_addr_name(to[0]), to[1]].join].join(':')
@@ -1486,32 +1492,43 @@ def run!
     cell.copy_to_range set_range.call(from, to)
   end
 
-  upper_left_corner = spreadsheet.set :A1, 1
-  upper_left_corner_right_neighbor = spreadsheet.set :B1, '=A1+1'
-  upper_left_corner_right_neighbor.copy_to_range set_range.call([CellAddress.col_addr_index(:C), 1], [square_size, 1])
-  upper_right_corner_bottom_neighbor = spreadsheet.set [square_size, 2], "=#{CellAddress.col_addr_name(square_size)}1+1"
-  upper_right_corner_bottom_neighbor.copy_to_range set_range.call([square_size, 3], [square_size, square_size])
-  lower_right_corner_left_neighbor =
-    spreadsheet.set [square_size - 1, square_size], "=#{CellAddress.col_addr_name(square_size)}#{square_size}+1"
-  lower_right_corner_left_neighbor.copy_to_range(
-    set_range.call [CellAddress.col_addr_index(:A), square_size], [square_size - 2, square_size]
+  top_left = spreadsheet.set :A1, 1
+
+  top_left_right_neighbor = spreadsheet.set :B1, '=A1+1'
+  top_left_right_neighbor.copy_to_range set_range.call([CellAddress.col_addr_index(:C), 1], [rectangle[0], 1])
+
+  top_right_lower_neighbor = spreadsheet.set [rectangle[0], 2], "=#{CellAddress.col_addr_name(rectangle[0])}1+1"
+  top_right_lower_neighbor.copy_to_range set_range.call [rectangle[0], 3], [rectangle[0], rectangle[1]]
+
+  bottom_right_left_neighbor = spreadsheet.set(
+    [rectangle[0] - 1, rectangle[1]],
+    "=#{CellAddress.col_addr_name(rectangle[0])}#{rectangle[1]}+1"
   )
-  bottom_left_corner_top_neighbor = spreadsheet.set [:A, square_size - 1], "=A#{square_size}+1"
-  bottom_left_corner_top_neighbor.copy_to_range(
-    set_range.call [CellAddress.col_addr_index(:A), 2], [CellAddress.col_addr_index(:A), square_size - 2]
+  bottom_right_left_neighbor.copy_to_range set_range.call [CellAddress.col_addr_index(:A), rectangle[1]], [rectangle[0] - 2, rectangle[1]]
+
+  bottom_left_upper_neighbor = spreadsheet.set [:A, rectangle[1] - 1], "=A#{rectangle[1]}+1"
+  bottom_left_upper_neighbor.copy_to_range(
+    set_range.call [CellAddress.col_addr_index(:A), 2], [CellAddress.col_addr_index(:A), rectangle[1] - 2]
   )
 
-  from = 2
-  to   = square_size - 1
+  fill = {
+    from: [2, 2],
+    to: [rectangle[0] - 1, rectangle[1] - 1]
+  }
 
-  while from <= to do
-    fill_range.call upper_left_corner_right_neighbor,   [from,  from],      [to,      from]
-    fill_range.call upper_right_corner_bottom_neighbor, [to,    from + 1],  [to,      to]
-    fill_range.call lower_right_corner_left_neighbor,   [from,  to],        [to - 1,  to]
-    fill_range.call bottom_left_corner_top_neighbor,    [from,  from + 1],  [from,    to - 1]
+  while fill[:from][0] <= fill[:to][0] && fill[:from][1] <= fill[:to][1] do
+    fill_range.call top_left_right_neighbor,  [fill[:from][0], fill[:from][1]],     [fill[:to][0], fill[:from][1]]
+    fill_range.call top_right_lower_neighbor, [fill[:to][0],   fill[:from][1] + 1], [fill[:to][0], fill[:to][1]]
 
-    from += 1
-    to   -= 1
+    break if fill[:from][0] == fill[:to][0] || fill[:from][1] == fill[:to][1]    # Columns and/or rows have matched!
+
+    fill_range.call bottom_right_left_neighbor, [fill[:from][0],  fill[:to][1]],       [fill[:to][0] - 1, fill[:to][1]]
+    fill_range.call bottom_left_upper_neighbor, [fill[:from][0],  fill[:from][1] + 1], [fill[:from][0],   fill[:to][1] - 1]
+
+    fill[:from][0] += 1
+    fill[:from][1] += 1
+    fill[:to][0]   -= 1
+    fill[:to][1]   -= 1
   end
 
   spreadsheet.repl
