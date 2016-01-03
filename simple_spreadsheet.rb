@@ -1516,14 +1516,15 @@ def run!
     to: [rectangle[0] - 1, rectangle[1] - 1]
   }
 
-  while fill[:from][0] <= fill[:to][0] && fill[:from][1] <= fill[:to][1] do
+  loop do
     fill_range.call top_left_right_neighbor,  [fill[:from][0], fill[:from][1]],     [fill[:to][0], fill[:from][1]]
     fill_range.call top_right_lower_neighbor, [fill[:to][0],   fill[:from][1] + 1], [fill[:to][0], fill[:to][1]]
 
-    break if fill[:from][0] == fill[:to][0] || fill[:from][1] == fill[:to][1]    # Columns and/or rows have matched!
+    # Stop iteration if columns and/or rows have matched.
+    break if fill[:from][0] == fill[:to][0] || fill[:from][1] == fill[:to][1]
 
-    fill_range.call bottom_right_left_neighbor, [fill[:from][0],  fill[:to][1]],       [fill[:to][0] - 1, fill[:to][1]]
-    fill_range.call bottom_left_upper_neighbor, [fill[:from][0],  fill[:from][1] + 1], [fill[:from][0],   fill[:to][1] - 1]
+    fill_range.call bottom_right_left_neighbor, [fill[:from][0], fill[:to][1]],       [fill[:to][0] - 1, fill[:to][1]]
+    fill_range.call bottom_left_upper_neighbor, [fill[:from][0], fill[:from][1] + 1], [fill[:from][0],   fill[:to][1] - 1]
 
     fill[:from][0] += 1
     fill[:from][1] += 1
