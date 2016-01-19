@@ -1532,7 +1532,17 @@ def run!
     fill[:to][1]   -= 1
   end
 
-  spreadsheet.repl
+  require "spreadshit/window"
+
+  window = Spreadshit::Window.new do |delegate|
+    delegate.cell_updated { |addr, val| spreadsheet.set addr, val }
+    delegate.cell_content { |addr| spreadsheet.find_or_create_cell(addr).content }
+    delegate.cell_value do |addr|
+      cell = spreadsheet.find_or_create_cell(addr)
+      cell.blank? ? "" : cell.eval
+    end
+  end
+  window.start
 end
 
 run! if __FILE__ == $0

@@ -8,3 +8,4 @@ end
 gem "colorize"
 gem 'after_do'
 gem 'pry'
+gem 'spreadshit'
