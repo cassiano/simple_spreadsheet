@@ -15,7 +15,7 @@ GEM
       method_source (~> 0.8.1)
       slop (~> 3.4)
     slop (3.6.0)
-    spreadshit (0.1.1)
+    spreadshit (0.2.0)
       curses
       treetop (~> 1.6)
     treetop (1.6.3)
